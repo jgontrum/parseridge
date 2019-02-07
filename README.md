@@ -1,2 +1,2 @@
-# parseridge
-Parseridge: A Transition-based Dependency Parser
+# Parseridge
+A Transition-based Dependency Parser
