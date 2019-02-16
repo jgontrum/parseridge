@@ -8,7 +8,8 @@ from parseridge.utils.helpers import Transition as T
 
 class ParseridgeModel(nn.Module):
 
-    def __init__(self, relations, vocabulary, device="cpu"):
+    def __init__(self, relations, vocabulary, dropout=0.33, embedding_dim=100,
+                 hidden_dim=125, num_stack=3, num_buffer=1, device="cpu"):
         super(ParseridgeModel, self).__init__()
         self.device = device
 
@@ -16,8 +17,8 @@ class ParseridgeModel(nn.Module):
         self.vocabulary = vocabulary
         self.optimizer = None  # Should be set after creation.
 
-        self.embedding_dim = 100
-        self.hidden_dim = 125
+        self.embedding_dim = embedding_dim
+        self.hidden_dim = hidden_dim
 
         self.lstm_in_dim = self.embedding_dim
         self.lstm_out_dim = self.hidden_dim * 2  # x 2 because of BiRNN
@@ -25,8 +26,9 @@ class ParseridgeModel(nn.Module):
         self.num_transitions = 4  # LEFT_ARC, RIGHT_ARC, SHIFT and SWAP
         self.num_labels = self.relations.num_relations
 
-        self.stack_size = 3
-        self.buffer_size = 1
+        # Take the top n entries from buffer / stack as input into the MLP
+        self.stack_size = num_stack
+        self.buffer_size = num_buffer
 
         self.word_embeddings = nn.Embedding(
             num_embeddings=len(self.vocabulary),
@@ -38,11 +40,11 @@ class ParseridgeModel(nn.Module):
             input_size=self.lstm_in_dim,
             hidden_size=self.hidden_dim,
             num_layers=2,
-            dropout=0.33,
+            dropout=dropout,
             bidirectional=True
         )
 
-        self.dropout = nn.Dropout(p=0.3)
+        self.dropout = nn.Dropout(p=dropout)
 
         self.transition_mlp = nn.Linear(
             (self.stack_size + self.buffer_size) * self.lstm_out_dim,

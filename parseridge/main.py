@@ -41,6 +41,8 @@ def start():
     parser.fit(
         treebank.train_corpus,
         batch_size=options.batch_size,
+        error_prob=options.error_probability,
+        dropout=options.dropout,
         relations=treebank.relations,
         num_epochs=60,
         dev_corpus=treebank.dev_corpus

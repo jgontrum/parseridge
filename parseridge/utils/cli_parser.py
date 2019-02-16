@@ -45,4 +45,11 @@ def parse_cli_arguments():
         required=False
     )
 
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.33,
+        help="Dropout used.",
+        required=False
+    )
     return parser.parse_args()

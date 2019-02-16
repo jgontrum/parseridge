@@ -93,10 +93,13 @@ class ParseRidge(LoggerMixin):
 
         return pred_sentences, gold_sentences
 
-    def fit(self, corpus, batch_size, relations, num_epochs=3, dev_corpus=None):
+    def fit(self, corpus, relations, batch_size=4, error_prob=0.1, dropout=0.33,
+            num_epochs=3, dev_corpus=None):
+
         self.model = ParseridgeModel(
             relations=relations,
             vocabulary=corpus.vocabulary,
+            dropout=dropout,
             device=self.device
         ).to(self.device)
 
@@ -109,7 +112,7 @@ class ParseRidge(LoggerMixin):
         for epoch in range(num_epochs):
             t0 = time()
             self.logger.info(f"Starting epoch #{epoch + 1}...")
-            epoch_metric = self._run_epoch(corpus, batch_size)
+            epoch_metric = self._run_epoch(corpus, batch_size, error_prob)
 
             avg_loss = epoch_metric.loss / epoch_metric.num_updates
             self.logger.info(f"Epoch loss: {avg_loss:.8f}")
@@ -145,7 +148,8 @@ class ParseRidge(LoggerMixin):
                 f"Finished epoch in "
                 f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
 
-    def _run_epoch(self, corpus, batch_size=4, update_pbar_interval=50):
+    def _run_epoch(self, corpus, batch_size=4, error_prob=0.1,
+                   update_pbar_interval=50):
         """
         Wrapper that trains the model on the whole data set once.
 
@@ -171,7 +175,7 @@ class ParseRidge(LoggerMixin):
         interval_metric = Metric()
 
         iterator = corpus.get_iterator(batch_size=batch_size, shuffle=True)
-        with tqdm(total=len(corpus), dynamic_ncols=True) as pbar:
+        with tqdm(total=len(corpus)) as pbar:
             pbar_template = (
                 "Batch Loss: {loss:8.4f} | Updates: {updates:5.1f} | "
                 "Induced Errors: {errors:3.1f}"
@@ -180,7 +184,8 @@ class ParseRidge(LoggerMixin):
                 loss=0, updates=0, errors=0
             ))
             for i, batch in enumerate(iterator):
-                loss, batch_metric = self._run_training_batch(batch, loss)
+                loss, batch_metric = self._run_training_batch(
+                    batch, loss, error_prob)
 
                 epoch_metric += batch_metric
                 interval_metric += batch_metric
@@ -203,7 +208,7 @@ class ParseRidge(LoggerMixin):
         self.model.perform_back_propagation(loss)
         return epoch_metric
 
-    def _run_training_batch(self, batch, loss):
+    def _run_training_batch(self, batch, loss, error_prob):
         """
         Trains the parser model on the data given in `batch` and performs
         back-propagation, if the number of updates is above a certain
@@ -276,7 +281,7 @@ class ParseRidge(LoggerMixin):
                 # gold tree. To keep the model robust, we sometimes
                 # decided, however, to use it instead of the valid one.
                 best_action, best_valid_action, best_wrong_action = \
-                    configuration.select_actions(actions, costs)
+                    configuration.select_actions(actions, costs, error_prob)
 
                 # Apply the dynamic oracle to update the sentence structure
                 # for the case that the chosen action does not exactly

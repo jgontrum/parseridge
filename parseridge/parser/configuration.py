@@ -267,7 +267,7 @@ class Configuration:
 
         return costs, shift_case
 
-    def select_actions(self, actions, costs):
+    def select_actions(self, actions, costs, error_probability=0.1):
         """
         Given the predicted actions and the costs for the transitions,
         find the best action and the best wrong action. Both are needed
@@ -341,7 +341,7 @@ class Configuration:
                 and best_wrong_action.transition != T.SWAP
         )
         if no_swap_possible:
-            if random.random() <= 0.1:
+            if random.random() <= error_probability:
                 over_threshold = (
                         best_valid_action.score - best_wrong_action.score
                         > self.model.one
