@@ -23,9 +23,26 @@ def parse_cli_arguments():
     parser.add_argument(
         "--batch_size",
         type=int,
+        default=4,
         help="Number of sentences per batch.",
-        required=True
+        required=False
     )
 
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=123456789,
+        help="Number to initialize randomness with.",
+        required=False
+    )
+
+    parser.add_argument(
+        "--error_probability",
+        type=float,
+        default=0.1,
+        help="Probability to make a bad decision during parsing to increase"
+             "robustness.",
+        required=False
+    )
 
     return parser.parse_args()

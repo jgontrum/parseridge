@@ -110,8 +110,9 @@ class ParseRidge(LoggerMixin):
             t0 = time()
             self.logger.info(f"Starting epoch #{epoch + 1}...")
             epoch_metric = self._run_epoch(corpus, batch_size)
-            self.logger.info(
-                f"Epoch loss: {epoch_metric.loss / len(corpus):.2f}")
+
+            avg_loss = epoch_metric.loss / epoch_metric.num_updates
+            self.logger.info(f"Epoch loss: {avg_loss:.8f}")
 
             scores = {}
             # Evaluate on training corpus
@@ -142,9 +143,9 @@ class ParseRidge(LoggerMixin):
             duration = time() - t0
             self.logger.info(
                 f"Finished epoch in "
-                f"{int(duration / 60)}:{int(duration % 60)} minutes.")
+                f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
 
-    def _run_epoch(self, corpus, batch_size=4, update_pbar_interval=10):
+    def _run_epoch(self, corpus, batch_size=4, update_pbar_interval=50):
         """
         Wrapper that trains the model on the whole data set once.
 

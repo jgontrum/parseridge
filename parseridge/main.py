@@ -1,4 +1,7 @@
 import logging
+import torch
+
+import numpy as np
 
 import os
 from parseridge.corpus.corpus import Corpus
@@ -18,14 +21,22 @@ logger = logging.getLogger(__name__)
 def start():
     os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     device = get_device()
-
     options = parse_cli_arguments()
+
+    # Set seed
+    seed = options.seed
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    # Load data
     treebank = Treebank(
         open(options.train),
         open(options.test),
         device=device
     )
 
+    # Start training
     parser = ParseRidge(device)
     parser.fit(
         treebank.train_corpus,
