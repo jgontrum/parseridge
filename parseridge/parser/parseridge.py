@@ -24,50 +24,24 @@ class ParseRidge(LoggerMixin):
         self.time_prefix = lambda: datetime.now().strftime("%Y%m%d-%H%M%S")
         self.device = device
 
-    def predict(self, corpus, batch_size=256, remove_pbar=True):
+    def predict(self, corpus, batch_size=512, remove_pbar=True):
         self.model = self.model.eval()
         gold_sentences = []
         pred_sentences = []
 
-        # The data iterator gives us a progress bar
-        data_iterator = tqdm(
-            corpus.get_iterator(batch_size, shuffle=False),
-            desc=f"Predicting sentences ({batch_size} per batch)",
-            leave=not remove_pbar
-        )
+        iterator = corpus.get_iterator(batch_size=batch_size, shuffle=False)
+        with tqdm(
+                total=len(corpus),
+                desc=f"Predicting sentences...",
+                leave=not remove_pbar
+        ) as pbar:
+            for batch in iterator:
+                pred, gold = self._run_prediction_batch(batch)
+                pred_sentences += pred
+                gold_sentences += gold
 
-        for batch in data_iterator:
-            pred, gold = self._run_prediction_batch(batch)
-            pred_sentences += pred
-            gold_sentences += gold
-
+                pbar.update(len(batch[1]))
         return pred_sentences, gold_sentences
-
-    def save_model(self, model, scores):
-        if not os.path.isdir(self.model_dir):
-            os.makedirs(self.model_dir)
-
-        current_path = f"{self.model_dir}/model-{self.time_prefix()}.model"
-
-        torch.save({
-            "model": model.state_dict(),
-            "vocabulary": model.vocabulary,
-            "relations": model.relations,
-            "scores": scores
-        }, current_path)
-
-        return current_path
-
-    def load_model(self, path):
-        model_data = torch.load(path)
-
-        self.model = ParseridgeModel(
-            model_data["relations"],
-            model_data["vocabulary"],
-            device=self.device
-        )
-        self.model.load_state_dict(model_data["model"])
-        self.model = self.model.to(self.device)
 
     def _run_prediction_batch(self, batch):
         pred_sentences = []
@@ -134,6 +108,7 @@ class ParseRidge(LoggerMixin):
 
         for epoch in range(num_epochs):
             t0 = time()
+            self.logger.info(f"Starting epoch #{epoch + 1}...")
             epoch_metric = self._run_epoch(corpus, batch_size)
             self.logger.info(
                 f"Epoch loss: {epoch_metric.loss / len(corpus):.2f}")
@@ -156,14 +131,18 @@ class ParseRidge(LoggerMixin):
                 scores["dev"] = dev_scores
                 self.logger.info(
                     f"Performance on the dev set after {epoch + 1} epochs: "
+                    "     "
                     f"LAS: {dev_scores['LAS']:.2f} | "
                     f"UAS: {dev_scores['UAS']:.2f}"
                 )
 
             path = self.save_model(self.model, scores)
             self.logger.info(f"Saved model to '{path}'.")
+
+            duration = time() - t0
             self.logger.info(
-                f"Finished epoch in {(time() - t0) / 60:.2f} minutes.")
+                f"Finished epoch in "
+                f"{int(duration / 60)}:{int(duration % 60)} minutes.")
 
     def _run_epoch(self, corpus, batch_size=4, update_pbar_interval=10):
         """
@@ -193,8 +172,8 @@ class ParseRidge(LoggerMixin):
         iterator = corpus.get_iterator(batch_size=batch_size, shuffle=True)
         with tqdm(total=len(corpus), dynamic_ncols=True) as pbar:
             pbar_template = (
-                "Batch Loss: {loss:.4f} | Updates: {updates:.1f} | "
-                "Induced Errors: {errors:.1f}"
+                "Batch Loss: {loss:8.4f} | Updates: {updates:5.1f} | "
+                "Induced Errors: {errors:3.1f}"
             )
             pbar.set_description(pbar_template.format(
                 loss=0, updates=0, errors=0
@@ -396,3 +375,29 @@ class ParseRidge(LoggerMixin):
             }
 
         return configurations
+
+    def save_model(self, model, scores):
+        if not os.path.isdir(self.model_dir):
+            os.makedirs(self.model_dir)
+
+        current_path = f"{self.model_dir}/model-{self.time_prefix()}.model"
+
+        torch.save({
+            "model": model.state_dict(),
+            "vocabulary": model.vocabulary,
+            "relations": model.relations,
+            "scores": scores
+        }, current_path)
+
+        return current_path
+
+    def load_model(self, path):
+        model_data = torch.load(path)
+
+        self.model = ParseridgeModel(
+            model_data["relations"],
+            model_data["vocabulary"],
+            device=self.device
+        )
+        self.model.load_state_dict(model_data["model"])
+        self.model = self.model.to(self.device)
