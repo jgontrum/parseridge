@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+conllu = "*"
+torch = "*"
+torchvision = "*"
+tqdm = "*"
+numpy = "*"
+
+[dev-packages]
+sphinx = "*"
+numpydoc = "*"
+
+[requires]
+python_version = "3.6"
