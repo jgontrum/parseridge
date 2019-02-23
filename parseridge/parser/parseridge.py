@@ -49,7 +49,7 @@ class ParseRidge(LoggerMixin):
 
         sentence_features, sentences = batch
 
-        contextualized_tokens_batch = self.model.compute_lstm_output(
+        contextualized_tokens_batch, hidden = self.model.compute_lstm_output(
             sentences, sentence_features
         )
 
@@ -248,7 +248,7 @@ class ParseRidge(LoggerMixin):
         # Run the sentence through the LSTM to get the outputs.
         # These outputs will stay the same for the sentence,
         # so we compute them once in the beginning.
-        contextualized_tokens_batch = self.model.compute_lstm_output(
+        contextualized_tokens_batch, hidden = self.model.compute_lstm_output(
             sentences, sentence_features
         )
 

@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from parseridge.parser.modules.attention import Attention
+from parseridge.parser.modules.input_encoder import InputEncoder
+from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.utils.helpers import Action
 from parseridge.utils.helpers import Transition as T
 
@@ -20,9 +23,6 @@ class ParseridgeModel(nn.Module):
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
 
-        self.lstm_in_dim = self.embedding_dim
-        self.lstm_out_dim = self.hidden_dim * 2  # x 2 because of BiRNN
-
         self.num_transitions = 4  # LEFT_ARC, RIGHT_ARC, SHIFT and SWAP
         self.num_labels = self.relations.num_relations
 
@@ -30,62 +30,34 @@ class ParseridgeModel(nn.Module):
         self.stack_size = num_stack
         self.buffer_size = num_buffer
 
-        self.word_embeddings = nn.Embedding(
-            num_embeddings=len(self.vocabulary),
-            embedding_dim=self.embedding_dim,
-            padding_idx=self.vocabulary.get_id("<<<PADDING>>>")
+        self.input_encoder = InputEncoder(
+            vocabulary, embedding_dim, hidden_dim
         )
+        output_size = self.input_encoder.output_size
 
-        self.lstm = nn.LSTM(
-            input_size=self.lstm_in_dim,
-            hidden_size=self.hidden_dim,
-            num_layers=2,
-            dropout=dropout,
-            bidirectional=True
-        )
+        self.attention = Attention("general", output_size, self.device)
 
         self.dropout = nn.Dropout(p=dropout)
 
-        self.transition_mlp = nn.Linear(
-            (self.stack_size + self.buffer_size) * self.lstm_out_dim,
+        self.transition_mlp = MultilayerPerceptron(
+            (self.stack_size + self.buffer_size) * output_size,
+            125,
             self.num_transitions
         )
 
-        self.relation_mlp = nn.Linear(
-            (self.stack_size + self.buffer_size) * self.lstm_out_dim,
+        self.relation_mlp = MultilayerPerceptron(
+            (self.stack_size + self.buffer_size) * output_size,
+            125,
             self.num_labels
         )
 
-        self._init_weights_xavier(self.word_embeddings)
-        self._init_weights_xavier(self.lstm)
-        self._init_weights_xavier(self.transition_mlp)
-        self._init_weights_xavier(self.relation_mlp)
-
         # Declare tensors that are needed throughout the process
         self._mlp_padding = torch.zeros(
-            self.lstm_out_dim, requires_grad=False).to(self.device)
+            output_size, requires_grad=True).to(self.device)
         self.negative_infinity = torch.tensor(
-            float("-inf"), requires_grad=False).to(self.device)
-        self.one = torch.tensor(1.0, requires_grad=False).to(self.device)
+            float("-inf"), requires_grad=True).to(self.device)
+        self.one = torch.tensor(1.0, requires_grad=True).to(self.device)
 
-    @staticmethod
-    def _init_weights_xavier(network):
-        """
-        Initializes the layers of a given network with random values.
-        Bias layers will be filled with zeros.
-
-        Parameters
-        ----------
-        network : torch.nn object
-            The network to initialize.
-        """
-        for name, param in network.named_parameters():
-            if 'bias' in name:
-                nn.init.constant_(param, 0.0)
-            elif 'weight' in name:
-                nn.init.xavier_normal_(
-                    param, gain=nn.init.calculate_gain("tanh")
-                )
 
     def _pad_list(self, list_, length):
         """
@@ -112,36 +84,7 @@ class ParseridgeModel(nn.Module):
         return list_
 
     def compute_lstm_output(self, sentences, sentence_features):
-        """
-
-        Parameters
-        ----------
-        sentences
-        sentence_features
-
-        Returns
-        -------
-
-        """
-        # Returns the LSTM outputs for every token in the sentence
-        tokens = sentence_features[:, 0, :]
-        tokens_embedded = self.word_embeddings(tokens)
-        sentence_lengths = [len(sentence) for sentence in sentences]
-
-        tokens_packed = pack_padded_sequence(
-            tokens_embedded,
-            torch.tensor(sentence_lengths, dtype=torch.int64),
-            batch_first=True
-        )
-
-        packed_output, _ = self.lstm(tokens_packed)
-
-        output, _ = pad_packed_sequence(
-            packed_output,
-            batch_first=True
-        )
-
-        return output
+        return self.input_encoder(sentences, sentence_features)
 
     def compute_mlp_output(self, lstm_out_batch, stack_index_batch,
                            buffer_index_batch):

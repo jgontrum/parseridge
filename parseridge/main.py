@@ -1,26 +1,17 @@
 import logging
-import torch
 
 import numpy as np
-
-import os
-from parseridge.corpus.corpus import Corpus
-from parseridge.corpus.sentence import Sentence
-from parseridge.corpus.signature import Signature
+import torch
 
 from parseridge.corpus.treebank import Treebank
 from parseridge.parser.parseridge import ParseRidge
 from parseridge.utils.cli_parser import parse_cli_arguments
-from parseridge.utils.evaluate import CoNNLEvaluator
-from parseridge.utils.helpers import get_device
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 def start():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-    device = get_device()
     options = parse_cli_arguments()
 
     # Set seed
@@ -33,11 +24,11 @@ def start():
     treebank = Treebank(
         open(options.train),
         open(options.test),
-        device=device
+        device=options.device
     )
 
     # Start training
-    parser = ParseRidge(device)
+    parser = ParseRidge(options.device)
     parser.fit(
         treebank.train_corpus,
         batch_size=options.batch_size,
@@ -69,6 +60,7 @@ def start():
     #
     # evaluator = CoNNLEvaluator()
     # print(evaluator.get_las_score_for_sentences(pred, gold))
+
 
 if __name__ == '__main__':
     start()

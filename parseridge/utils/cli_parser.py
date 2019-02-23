@@ -1,5 +1,7 @@
 import argparse
 
+from parseridge.utils.helpers import get_device
+
 
 def parse_cli_arguments():
     parser = argparse.ArgumentParser(
@@ -52,4 +54,13 @@ def parse_cli_arguments():
         help="Dropout used.",
         required=False
     )
+
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=get_device(),
+        help="Use CPU or GPU",
+        required=False
+    )
+
     return parser.parse_args()
