@@ -49,14 +49,16 @@ class ParseRidge(LoggerMixin):
 
         sentence_features, sentences = batch
 
-        contextualized_tokens_batch, hidden = self.model.compute_lstm_output(
-            sentences, sentence_features
-        )
+        contextualized_tokens_batch, context_vector_batch = \
+            self.model.compute_lstm_output(sentences, sentence_features)
 
+        # Create the initial configurations for all sentences in the batch
         configurations = [
-            Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in
-            zip(contextualized_tokens_batch, sentences)
+            Configuration(
+                sentence, contextualized_input, context_vector, self.model
+            )
+            for contextualized_input, sentence, context_vector in
+            zip(contextualized_tokens_batch, sentences, context_vector_batch)
         ]
 
         while configurations:
@@ -248,15 +250,16 @@ class ParseRidge(LoggerMixin):
         # Run the sentence through the LSTM to get the outputs.
         # These outputs will stay the same for the sentence,
         # so we compute them once in the beginning.
-        contextualized_tokens_batch, hidden = self.model.compute_lstm_output(
-            sentences, sentence_features
-        )
+        contextualized_tokens_batch, context_vector_batch = \
+            self.model.compute_lstm_output(sentences, sentence_features)
 
         # Create the initial configurations for all sentences in the batch
         configurations = [
-            Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in
-            zip(contextualized_tokens_batch, sentences)
+            Configuration(
+                sentence, contextualized_input, context_vector, self.model
+            )
+            for contextualized_input, sentence, context_vector in
+            zip(contextualized_tokens_batch, sentences, context_vector_batch)
         ]
 
         # Main loop for the sentences in this batch
@@ -321,6 +324,7 @@ class ParseRidge(LoggerMixin):
         """
         clf_transitions, clf_labels = self.model.compute_mlp_output(
             [c.contextualized_input for c in configurations],
+            [c.context_vector for c in configurations],
             [c.stack for c in configurations],
             [c.buffer for c in configurations],
         )

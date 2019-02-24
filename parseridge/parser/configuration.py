@@ -5,7 +5,7 @@ from parseridge.utils.helpers import Action, T, Transition
 
 class Configuration:
 
-    def __init__(self, sentence, contextualized_input, model):
+    def __init__(self, sentence, contextualized_input, context_vector, model):
         """
         The Configuration class is used to store the information about a
         parser configuration like stack, buffer, predictions etc.
@@ -28,6 +28,7 @@ class Configuration:
         self.sentence = sentence
         self.predicted_sentence = sentence.get_empty_copy()
         self.contextualized_input = contextualized_input
+        self.context_vector = context_vector
         self.scores = {}
         self.stack = []
         self.buffer = [token.id for token in sentence][1:] + \

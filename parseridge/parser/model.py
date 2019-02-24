@@ -1,12 +1,9 @@
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.attention import Attention
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.utils.helpers import Action
-from parseridge.utils.helpers import Transition as T
 
 
 class ParseridgeModel(nn.Module):
@@ -35,18 +32,18 @@ class ParseridgeModel(nn.Module):
         )
         output_size = self.input_encoder.output_size
 
-        self.attention = Attention("general", output_size, self.device)
+        self.attention = Attention("concat", output_size, self.device)
 
         self.dropout = nn.Dropout(p=dropout)
 
         self.transition_mlp = MultilayerPerceptron(
-            (self.stack_size + self.buffer_size) * output_size,
+            (self.stack_size + self.buffer_size) * output_size + output_size,
             125,
             self.num_transitions
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            (self.stack_size + self.buffer_size) * output_size,
+            (self.stack_size + self.buffer_size) * output_size + output_size,
             125,
             self.num_labels
         )
@@ -57,7 +54,6 @@ class ParseridgeModel(nn.Module):
         self.negative_infinity = torch.tensor(
             float("-inf"), requires_grad=True).to(self.device)
         self.one = torch.tensor(1.0, requires_grad=True).to(self.device)
-
 
     def _pad_list(self, list_, length):
         """
@@ -84,10 +80,18 @@ class ParseridgeModel(nn.Module):
         return list_
 
     def compute_lstm_output(self, sentences, sentence_features):
-        return self.input_encoder(sentences, sentence_features)
+        encoder_outputs, hidden_states = \
+            self.input_encoder(sentences, sentence_features)
 
-    def compute_mlp_output(self, lstm_out_batch, stack_index_batch,
-                           buffer_index_batch):
+        attention_weights = self.attention(
+            hidden_states, encoder_outputs)
+
+        context_vectors = attention_weights.bmm(encoder_outputs)
+        context_vectors = context_vectors.squeeze(1)
+        return encoder_outputs, context_vectors
+
+    def compute_mlp_output(self, lstm_out_batch, context_vector_batch,
+                           stack_index_batch, buffer_index_batch):
         """
 
         :param lstm_out:
@@ -95,6 +99,7 @@ class ParseridgeModel(nn.Module):
         :param buffer_index:
         :return:
         """
+        context_vector_batch = torch.stack(context_vector_batch)
 
         stack_batch = []
         for stack_index, lstm_out in zip(stack_index_batch, lstm_out_batch):
@@ -120,7 +125,9 @@ class ParseridgeModel(nn.Module):
 
         buffer_batch = torch.stack(tuple(buffer_batch))
 
-        mlp_input = torch.cat((stack_batch, buffer_batch), dim=1)
+        mlp_input = torch.cat(
+            (stack_batch, buffer_batch, context_vector_batch), dim=1)
+
         mlp_input = self.dropout(mlp_input)
 
         transitions_output = torch.tanh(
@@ -132,7 +139,6 @@ class ParseridgeModel(nn.Module):
         )
 
         return transitions_output, relations_output
-
 
     def perform_back_propagation(self, loss):
         """
