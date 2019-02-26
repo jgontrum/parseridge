@@ -32,6 +32,7 @@ class Treebank(LoggerMixin):
         )
 
         self.vocabulary.read_only()
+        self.relations.signature.read_only()
 
         self.logger.info(f"Load development corpus...")
 

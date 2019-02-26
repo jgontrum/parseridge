@@ -1,3 +1,5 @@
+import numpy as np
+
 import conllu
 
 from parseridge.corpus.token import Token
@@ -69,6 +71,18 @@ class Sentence:
         """
         new_tokens = [token.get_unparsed_token() for token in self[1:]]
         return Sentence(new_tokens, text=self.text, meta=self.meta)
+
+    def get_graph_matrix(self, relation_vocab=None):
+        graph = np.zeros((len(self), len(self)))
+        for i, head in enumerate(self):
+            for child_id in head.dependents:
+                if relation_vocab:
+                    relation = self[child_id].relation
+                    graph[i, child_id] = relation_vocab.get_id(relation)
+                else:
+                    graph[i, child_id] = 1
+
+        return graph
 
     def __repr__(self):
         return self.to_conllu().serialize()

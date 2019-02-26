@@ -1,7 +1,10 @@
+import numpy as np
+
 import torch
 import torch.nn as nn
 
 from parseridge.parser.modules.attention import Attention
+from parseridge.parser.modules.graph_encoder import GraphEncoder
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 
@@ -27,24 +30,31 @@ class ParseridgeModel(nn.Module):
         self.stack_size = num_stack
         self.buffer_size = num_buffer
 
+        self.max_sentence_size = 100
+
         self.input_encoder = InputEncoder(
             vocabulary, embedding_dim, hidden_dim
         )
         output_size = self.input_encoder.output_size
-
         self.attention = Attention("concat", output_size, self.device)
+
+        # self.graph_encoder = GraphEncoder(
+        #     input_size=self.max_sentence_size,
+        #     output_size=32,
+        #     device=self.device
+        # )
 
         self.dropout = nn.Dropout(p=dropout)
 
         self.transition_mlp = MultilayerPerceptron(
-            (self.stack_size + self.buffer_size) * output_size + output_size,
-            125,
+            output_size + self.max_sentence_size ** 2,
+            [125],
             self.num_transitions
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            (self.stack_size + self.buffer_size) * output_size + output_size,
-            125,
+            output_size + self.max_sentence_size ** 2,
+            [125],
             self.num_labels
         )
 
@@ -90,8 +100,7 @@ class ParseridgeModel(nn.Module):
         context_vectors = context_vectors.squeeze(1)
         return encoder_outputs, context_vectors
 
-    def compute_mlp_output(self, lstm_out_batch, context_vector_batch,
-                           stack_index_batch, buffer_index_batch):
+    def compute_mlp_output(self, context_vector_batch, sentences):
         """
 
         :param lstm_out:
@@ -101,32 +110,20 @@ class ParseridgeModel(nn.Module):
         """
         context_vector_batch = torch.stack(context_vector_batch)
 
-        stack_batch = []
-        for stack_index, lstm_out in zip(stack_index_batch, lstm_out_batch):
-            stack = self._pad_list([
-                lstm_out[i] for i in stack_index[-self.stack_size:]
-            ], self.stack_size)
+        graphs_batch = []
+        for sentence in sentences:
+            graph = sentence.get_graph_matrix()
+            padding_size = self.max_sentence_size - graph.shape[0]
+            graph = np.pad(
+                graph, (0, padding_size), 'constant', constant_values=0
+            )
+            graphs_batch.append(graph.flatten())
 
-            stack = torch.stack(stack).view((-1,))
-            stack.requires_grad_()
-            stack_batch.append(stack)
-
-        stack_batch = torch.stack(tuple(stack_batch))
-
-        buffer_batch = []
-        for buffer_index, lstm_out in zip(buffer_index_batch, lstm_out_batch):
-            buffer = self._pad_list([
-                lstm_out[i] for i in buffer_index[:self.buffer_size]
-            ], self.buffer_size)
-
-            buffer = torch.stack(buffer).view((-1,))
-            buffer.requires_grad_()
-            buffer_batch.append(buffer)
-
-        buffer_batch = torch.stack(tuple(buffer_batch))
+        graphs_batch = torch.tensor(
+            graphs_batch, dtype=torch.float).to(self.device)
 
         mlp_input = torch.cat(
-            (stack_batch, buffer_batch, context_vector_batch), dim=1)
+            (graphs_batch, context_vector_batch), dim=1)
 
         mlp_input = self.dropout(mlp_input)
 

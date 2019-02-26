@@ -3,6 +3,7 @@ from datetime import datetime
 from time import time
 
 import torch
+from torch import optim
 from tqdm import tqdm
 
 from parseridge.parser.configuration import Configuration
@@ -105,7 +106,17 @@ class ParseRidge(LoggerMixin):
             device=self.device
         ).to(self.device)
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=0.01
+        )
+
+        # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer,
+        #     patience=3,
+        #     verbose=True
+        # )
+
         optimizer.zero_grad()
         self.model.optimizer = optimizer
 
@@ -114,7 +125,11 @@ class ParseRidge(LoggerMixin):
         for epoch in range(num_epochs):
             t0 = time()
             self.logger.info(f"Starting epoch #{epoch + 1}...")
-            epoch_metric = self._run_epoch(corpus, batch_size, error_prob)
+            epoch_metric = self._run_epoch(
+                corpus, batch_size, error_prob
+            )
+
+            # lr_scheduler.step(epoch_metric.loss)
 
             avg_loss = epoch_metric.loss / epoch_metric.num_updates
             self.logger.info(f"Epoch loss: {avg_loss:.8f}")
@@ -323,10 +338,8 @@ class ParseRidge(LoggerMixin):
         :return: Updated Configurations
         """
         clf_transitions, clf_labels = self.model.compute_mlp_output(
-            [c.contextualized_input for c in configurations],
             [c.context_vector for c in configurations],
-            [c.stack for c in configurations],
-            [c.buffer for c in configurations],
+            [c.predicted_sentence for c in configurations]
         )
 
         # Isolate the columns for the transitions
