@@ -1,3 +1,4 @@
+import os
 from collections import namedtuple
 from enum import Enum
 
@@ -65,3 +66,10 @@ def get_device():
     return torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"
     )
+
+
+def create_dirs(path):
+    try:
+        os.makedirs(path)
+    except FileExistsError:
+        pass

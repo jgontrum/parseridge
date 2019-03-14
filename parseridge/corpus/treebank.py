@@ -20,7 +20,7 @@ class Treebank(LoggerMixin):
         train_sentences = list(Sentence.from_conllu(train_as_string))
 
         self.vocabulary = Signature(
-            entries=["<<<PADDING>>>", "<<<OOV>>>"]
+            entries=["<<<OOV>>>", "<<<PADDING>>>"]
         )
 
         self.relations = Relations(train_sentences)

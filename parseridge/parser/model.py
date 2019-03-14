@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.utils.helpers import Action
 from parseridge.utils.helpers import Transition as T
+from parseridge.utils.logger import LoggerMixin
 
 
-class ParseridgeModel(nn.Module):
+class ParseridgeModel(nn.Module, LoggerMixin):
 
     def __init__(self, relations, vocabulary, dropout=0.33, embedding_dim=100,
                  hidden_dim=125, num_stack=3, num_buffer=1, device="cpu"):
@@ -39,21 +41,24 @@ class ParseridgeModel(nn.Module):
         self.lstm = nn.LSTM(
             input_size=self.lstm_in_dim,
             hidden_size=self.hidden_dim,
-            num_layers=2,
+            num_layers=1,
             dropout=dropout,
             bidirectional=True
         )
 
-        self.dropout = nn.Dropout(p=dropout)
+        self.mlp_in_dim = (self.stack_size + self.buffer_size) * self.lstm_out_dim
 
-        self.transition_mlp = nn.Linear(
-            (self.stack_size + self.buffer_size) * self.lstm_out_dim,
-            self.num_transitions
+        self.transition_mlp = MultilayerPerceptron(
+            self.mlp_in_dim, [125], self.num_transitions
         )
 
-        self.relation_mlp = nn.Linear(
-            (self.stack_size + self.buffer_size) * self.lstm_out_dim,
-            self.num_labels
+        self.relation_mlp = MultilayerPerceptron(
+            self.mlp_in_dim, [125], self.num_labels
+        )
+
+        self.mlp_padding_linear = nn.Sequential(
+            nn.Linear(self.lstm_in_dim, self.lstm_out_dim),
+            nn.Tanh()
         )
 
         self._init_weights_xavier(self.word_embeddings)
@@ -62,11 +67,26 @@ class ParseridgeModel(nn.Module):
         self._init_weights_xavier(self.relation_mlp)
 
         # Declare tensors that are needed throughout the process
-        self._mlp_padding = torch.zeros(
-            self.lstm_out_dim, requires_grad=False).to(self.device)
         self.negative_infinity = torch.tensor(
             float("-inf"), requires_grad=False).to(self.device)
         self.one = torch.tensor(1.0, requires_grad=False).to(self.device)
+
+        self.logger.info(
+            f"Embedding size: {self.embedding_dim}\n"
+            f"Stack size:     {self.stack_size}\n"
+            f"Buffer size:    {self.buffer_size}\n"
+            f"LSTM In:        {self.lstm_in_dim}\n"
+            f"LSTM Layers:    2\n"
+            f"LSTM Hidden:    {self.hidden_dim}\n"
+            f"LSTM Out:       {self.lstm_out_dim}\n"
+            f"MLP In:         {self.mlp_in_dim}\n"
+            f"Relations:      {self.num_labels}"
+        )
+
+    def init(self):
+        self._mlp_padding = self.mlp_padding_linear(
+            torch.zeros(self.lstm_in_dim, requires_grad=True).to(self.device)
+        )
 
     @staticmethod
     def _init_weights_xavier(network):
@@ -160,7 +180,6 @@ class ParseridgeModel(nn.Module):
             ], self.stack_size)
 
             stack = torch.stack(stack).view((-1,))
-            stack.requires_grad_()
             stack_batch.append(stack)
 
         stack_batch = torch.stack(tuple(stack_batch))
@@ -172,24 +191,17 @@ class ParseridgeModel(nn.Module):
             ], self.buffer_size)
 
             buffer = torch.stack(buffer).view((-1,))
-            buffer.requires_grad_()
             buffer_batch.append(buffer)
 
         buffer_batch = torch.stack(tuple(buffer_batch))
 
         mlp_input = torch.cat((stack_batch, buffer_batch), dim=1)
-        mlp_input = self.dropout(mlp_input)
 
-        transitions_output = torch.tanh(
-            self.transition_mlp(mlp_input)
-        )
+        transitions_output = self.transition_mlp(mlp_input)
 
-        relations_output = torch.tanh(
-            self.relation_mlp(mlp_input)
-        )
+        relations_output = self.relation_mlp(mlp_input)
 
         return transitions_output, relations_output
-
 
     def perform_back_propagation(self, loss):
         """
@@ -209,6 +221,8 @@ class ParseridgeModel(nn.Module):
 
             self.optimizer.step()
             self.optimizer.zero_grad()
+
+            self.init()
 
             metric = batch_loss.item() + len(loss)
             loss = []

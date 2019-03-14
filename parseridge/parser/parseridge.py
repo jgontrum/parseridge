@@ -8,7 +8,7 @@ from tqdm import tqdm
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.model import ParseridgeModel
 from parseridge.utils.evaluate import CoNNLEvaluator
-from parseridge.utils.helpers import T, Metric
+from parseridge.utils.helpers import T, Metric, create_dirs
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -19,17 +19,25 @@ class ParseRidge(LoggerMixin):
     """
 
     def __init__(self, device):
+        self.time_prefix = lambda: datetime.now().strftime("%Y%m%d-%H%M%S")
+
         self.model = None
         self.model_dir = "./models"
-        self.time_prefix = lambda: datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.temp_dir = f"./prediction/{self.time_prefix()}"
+
+        create_dirs(self.temp_dir)
+        create_dirs(self.model_dir)
+
         self.device = device
 
     def predict(self, corpus, batch_size=512, remove_pbar=True):
         self.model = self.model.eval()
+        self.swap_exceeded = 0
+
         gold_sentences = []
         pred_sentences = []
 
-        iterator = corpus.get_iterator(batch_size=batch_size, shuffle=False)
+        iterator = corpus.get_iterator(batch_size=batch_size, shuffle=False, train=False)
         with tqdm(
                 total=len(corpus),
                 desc=f"Predicting sentences...",
@@ -41,7 +49,9 @@ class ParseRidge(LoggerMixin):
                 gold_sentences += gold
 
                 pbar.update(len(batch[1]))
-        return pred_sentences, gold_sentences
+
+        self.logger.info(f"Exceeded swap: {self.swap_exceeded}")
+        return gold_sentences, pred_sentences
 
     def _run_prediction_batch(self, batch):
         pred_sentences = []
@@ -78,6 +88,8 @@ class ParseRidge(LoggerMixin):
                         if action.transition != T.SWAP
                     ]
 
+                    self.swap_exceeded += 1
+
                 best_action = Configuration.get_best_action(actions)
                 if best_action.transition == T.SWAP:
                     configuration.num_swap += 1
@@ -103,7 +115,9 @@ class ParseRidge(LoggerMixin):
             device=self.device
         ).to(self.device)
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        self.model.init()
+
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001, weight_decay=1e-6)
         optimizer.zero_grad()
         self.model.optimizer = optimizer
 
@@ -114,8 +128,9 @@ class ParseRidge(LoggerMixin):
             self.logger.info(f"Starting epoch #{epoch + 1}...")
             epoch_metric = self._run_epoch(corpus, batch_size, error_prob)
 
-            avg_loss = epoch_metric.loss / epoch_metric.num_updates
+            avg_loss = epoch_metric.loss / len(corpus)
             self.logger.info(f"Epoch loss: {avg_loss:.8f}")
+            self.logger.info(f"Induced errors: {epoch_metric.num_errors}")
 
             scores = {}
             # Evaluate on training corpus
@@ -131,7 +146,7 @@ class ParseRidge(LoggerMixin):
             # Evaluate on dev corpus
             if dev_corpus:
                 dev_scores = evaluator.get_las_score_for_sentences(
-                    *self.predict(dev_corpus))
+                    *self.predict(dev_corpus), self.temp_dir)
                 scores["dev"] = dev_scores
                 self.logger.info(
                     f"Performance on the dev set after {epoch + 1} epochs: "
@@ -140,8 +155,8 @@ class ParseRidge(LoggerMixin):
                     f"UAS: {dev_scores['UAS']:.2f}"
                 )
 
-            path = self.save_model(self.model, scores)
-            self.logger.info(f"Saved model to '{path}'.")
+            # path = self.save_model(self.model, scores)
+            # self.logger.info(f"Saved model to '{path}'.")
 
             duration = time() - t0
             self.logger.info(
@@ -174,7 +189,7 @@ class ParseRidge(LoggerMixin):
         epoch_metric = Metric()
         interval_metric = Metric()
 
-        iterator = corpus.get_iterator(batch_size=batch_size, shuffle=True)
+        iterator = corpus.get_iterator(batch_size=batch_size, shuffle=True, train=True)
         with tqdm(total=len(corpus)) as pbar:
             pbar_template = (
                 "Batch Loss: {loss:8.4f} | Updates: {updates:5.1f} | "
@@ -184,6 +199,7 @@ class ParseRidge(LoggerMixin):
                 loss=0, updates=0, errors=0
             ))
             for i, batch in enumerate(iterator):
+                self.model.zero_grad()
                 loss, batch_metric = self._run_training_batch(
                     batch, loss, error_prob)
 
@@ -191,7 +207,8 @@ class ParseRidge(LoggerMixin):
                 interval_metric += batch_metric
 
                 num_sentences = interval_metric.iterations * batch_size
-                if num_sentences >= update_pbar_interval:
+                if num_sentences >= update_pbar_interval and interval_metric.num_updates:
+                    assert num_sentences > 0
                     # Update less frequently
 
                     desc = pbar_template.format(
@@ -292,8 +309,15 @@ class ParseRidge(LoggerMixin):
                 configuration.apply_transition(best_action)
 
                 # Compute the loss by using the margin between the scores
+                # self.logger.debug(
+                #     f"BEST VALID: {best_valid_action.score.item():.8f} "
+                #     f"BEST WRONG: {best_wrong_action.score.item():.8f}"
+                # )
                 if best_valid_action.score < best_wrong_action.score + 1.0:
                     margin = best_wrong_action.score - best_valid_action.score
+                    # self.logger.debug(
+                    #     f"--MARGIN: {margin.item():.8f}"
+                    # )
                     batch_metric.num_updates += 1
                     loss.append(margin)
 

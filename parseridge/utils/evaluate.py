@@ -1,9 +1,11 @@
 import io
 
+from parseridge.utils.logger import LoggerMixin
+
 ID, FORM, LEMMA, UPOS, XPOS, FEATS, HEAD, DEPREL, DEPS, MISC = range(10)
 
 
-class CoNNLEvaluator:
+class CoNNLEvaluator(LoggerMixin):
     """
     Based on v. 1.0 of the CoNLL 2017 UD Parsing evaluation script by
     the Institute of Formal and Applied Linguistics (UFAL),
@@ -431,7 +433,8 @@ class CoNNLEvaluator:
 
         return alignment
 
-    def get_las_score_for_sentences(self, gold_sentences, predicted_sentences):
+    def get_las_score_for_sentences(self, gold_sentences, predicted_sentences,
+                                    save_path=None):
         """
         Takes a list of gold an predicted sentence objects and computes the
         F1 LAS score between them.
@@ -456,6 +459,18 @@ class CoNNLEvaluator:
         pred_connl = self.load_conllu(pred_buffer)
 
         scores = self.evaluate(gold_connl, pred_connl)
+
+        if save_path:
+            file_name = f"{save_path}/las-{scores['LAS'].f1 * 100}.conllu"
+            with open(file_name, "w") as f:
+                f.writelines(serialized_predicted)
+
+            file_name = f"{save_path}/las-{scores['LAS'].f1 * 100}_gold.conllu"
+            with open(file_name, "w") as f:
+                f.writelines(serialized_gold)
+
+            self.logger.info(f"Wrote predicted treebank to '{file_name}'.")
+
         return {
             "LAS": scores["LAS"].f1 * 100,
             "UAS": scores["UAS"].f1 * 100

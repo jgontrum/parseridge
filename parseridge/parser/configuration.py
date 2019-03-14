@@ -110,6 +110,7 @@ class Configuration:
                 best_score = best_scores[int(ignore_best)]
                 best_index = best_indices[int(ignore_best)]
 
+                # TODO check
                 best_label = self.model.relations.signature.get_item(best_index)
 
                 actions.append(
@@ -298,6 +299,7 @@ class Configuration:
         # current situation, but do not make sense given the
         # gold dependency tree and would lead to errors.
         # Get the best valid transition
+
         valid_actions = []
         for action in actions:
             # Only take transitions with a cost of 0 into account
@@ -337,19 +339,19 @@ class Configuration:
 
         best_action = best_valid_action
         no_swap_possible = (
-                costs[T.SWAP] != 0
-                and best_wrong_action.transition != T.SWAP
+            costs[T.SWAP] != 0
+            and best_wrong_action.transition != T.SWAP
         )
-        if no_swap_possible:
-            if random.random() <= error_probability:
-                over_threshold = (
-                        best_valid_action.score - best_wrong_action.score
-                        > self.model.one
-                )
 
-                if (over_threshold
-                        and best_valid_action.score > best_wrong_action.score):
-                    best_action = best_wrong_action
+        is_valid_transition = best_wrong_action.transition is not None
+
+        if no_swap_possible and is_valid_transition:
+
+            if not ((best_valid_action.score - best_wrong_action.score > 1.0) or (
+                    best_valid_action.score > best_wrong_action.score
+                    and random.random() > 0.1)):
+                best_action = best_wrong_action
+
 
         return best_action, best_valid_action, best_wrong_action
 
@@ -364,6 +366,9 @@ class Configuration:
         shift_case : int
             Output of the `get_transition_costs()` method.
         """
+        assert 0 <= shift_case <= 2
+        assert action.transition is not None
+
         if action.transition == T.SHIFT and shift_case == 2 and self.buffer:
             # Remove all references to tokens in the stack
             first_buffer_token = self.sentence[self.buffer[0]]
@@ -403,6 +408,8 @@ class Configuration:
         action : Action object
             Contains the transition and label if required.
         """
+        assert action.transition is not None
+
         dependent = parent = None
         if action.transition == T.SHIFT:
             self.stack.append(self.buffer[0])

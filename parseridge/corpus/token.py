@@ -24,7 +24,7 @@ class Token:
     def create_root_token(cls):
         return cls(
             id=0,
-            form="<<<ROOT>>>",
+            form="*root*",
             head=None,
             deps=None,
             deprel="rroot",

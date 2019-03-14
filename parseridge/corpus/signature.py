@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -9,6 +11,7 @@ class Signature(LoggerMixin):
 
         self._item_to_id = {}
         self._id_to_item = []
+        self._item_to_count = defaultdict(int)
         self.oov = 0
 
         # Add default entries like 'Padding', 'OOV' etc.
@@ -25,6 +28,8 @@ class Signature(LoggerMixin):
         self._read_only = True
 
     def add(self, item):
+        self._item_to_count[item] += 1
+
         token_id = self._item_to_id.get(item)
         if token_id is None:
             if self._read_only:
@@ -35,10 +40,14 @@ class Signature(LoggerMixin):
             token_id = len(self._id_to_item)
             self._item_to_id[item] = token_id
             self._id_to_item.append(item)
+
         return token_id
 
     def get_id(self, item):
         return self._item_to_id.get(item, self.oov)
+
+    def get_count(self, item):
+        return self._item_to_count.get(item, 0.0)
 
     def get_item(self, id_):
         if id_ < len(self._id_to_item):
