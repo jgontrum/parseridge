@@ -30,6 +30,13 @@ class ParseRidge(LoggerMixin):
 
         self.device = device
 
+        self.transition_stats = {
+            "LEFT": 0,
+            "RIGHT": 0,
+            "SHIFT": 0,
+            "SWAP": 0
+        }
+
     def predict(self, corpus, batch_size=512, remove_pbar=True):
         self.model = self.model.eval()
         self.swap_exceeded = 0
@@ -88,8 +95,6 @@ class ParseRidge(LoggerMixin):
                         if action.transition != T.SWAP
                     ]
 
-                    self.swap_exceeded += 1
-
                 best_action = Configuration.get_best_action(actions)
                 if best_action.transition == T.SWAP:
                     configuration.num_swap += 1
@@ -117,8 +122,7 @@ class ParseRidge(LoggerMixin):
 
         self.model.init()
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001, weight_decay=1e-6)
-        optimizer.zero_grad()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.model.optimizer = optimizer
 
         evaluator = CoNNLEvaluator()
@@ -199,7 +203,7 @@ class ParseRidge(LoggerMixin):
                 loss=0, updates=0, errors=0
             ))
             for i, batch in enumerate(iterator):
-                self.model.zero_grad()
+                # self.model.zero_grad()
                 loss, batch_metric = self._run_training_batch(
                     batch, loss, error_prob)
 
@@ -223,6 +227,8 @@ class ParseRidge(LoggerMixin):
 
         # In case there are some margin losses left, compute their gradients.
         self.model.perform_back_propagation(loss)
+
+        print(self.transition_stats)
         return epoch_metric
 
     def _run_training_batch(self, batch, loss, error_prob):
@@ -291,6 +297,10 @@ class ParseRidge(LoggerMixin):
                 # which action should be performed based on the given
                 # conf
                 costs, shift_case = configuration.get_transition_costs(actions)
+                self.transition_stats["LEFT"] += costs[T.LEFT_ARC]
+                self.transition_stats["RIGHT"] += costs[T.RIGHT_ARC]
+                self.transition_stats["SHIFT"] += costs[T.SHIFT]
+                self.transition_stats["SWAP"] += costs[T.SWAP]
 
                 # Compute the best valid and the best wrong action,
                 # where the latter on is a transition that is technically
@@ -347,6 +357,7 @@ class ParseRidge(LoggerMixin):
             [c.contextualized_input for c in configurations],
             [c.stack for c in configurations],
             [c.buffer for c in configurations],
+            [c.sentence for c in configurations],
         )
 
         # Isolate the columns for the transitions

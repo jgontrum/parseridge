@@ -62,9 +62,10 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         )
 
         self._init_weights_xavier(self.word_embeddings)
-        self._init_weights_xavier(self.lstm)
+        # self._init_weights_xavier(self.lstm)
         self._init_weights_xavier(self.transition_mlp)
         self._init_weights_xavier(self.relation_mlp)
+        self._init_weights_xavier(self.mlp_padding_linear)
 
         # Declare tensors that are needed throughout the process
         self.negative_infinity = torch.tensor(
@@ -163,8 +164,20 @@ class ParseridgeModel(nn.Module, LoggerMixin):
 
         return output
 
+    def _reorder(self, indices, sentence):
+        ret = []
+        root_index = len(sentence) - 1
+        for i in indices:
+            if i == 0:
+                ret.append(root_index)
+            else:
+                assert i - 1 >= 0
+                ret.append(i-1)
+
+        return ret
+
     def compute_mlp_output(self, lstm_out_batch, stack_index_batch,
-                           buffer_index_batch):
+                           buffer_index_batch, sentence_batch):
         """
 
         :param lstm_out:

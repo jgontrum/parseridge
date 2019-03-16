@@ -162,7 +162,7 @@ class CorpusIterator(LoggerMixin):
 
         self.sentence_tensors = self.corpus.sentence_tensors
 
-        if train:
+        if False:
             frequency_tensors = self.corpus.sentence_token_freq_tensors
             rand = frequency_tensors.data.new(frequency_tensors.size()).uniform_()
             mask = torch.lt(rand, frequency_tensors).type(torch.long)
