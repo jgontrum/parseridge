@@ -33,3 +33,7 @@ class Relations:
             T.LEFT_ARC: slice(2, self.num_relations, 2),
             T.RIGHT_ARC: slice(3, self.num_relations, 2),
         }
+
+    @property
+    def relations(self):
+        return self.signature.get_ids()

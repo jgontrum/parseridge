@@ -14,7 +14,7 @@ class Treebank(LoggerMixin):
 
     def __init__(self, train_io, dev_io, test_io=None, device="cpu"):
         train_as_string = "".join(train_io)
-        dev_as_string = "".join(dev_io)
+        dev_as_string = "".join(dev_io) if dev_io else ""
         test_as_string = "".join(test_io) if test_io else ""
 
         self.logger.info(f"Load training corpus...")
@@ -32,13 +32,15 @@ class Treebank(LoggerMixin):
 
         self.vocabulary.read_only()
 
-        self.logger.info(f"Load development corpus...")
+        self.dev_corpus = None
+        if dev_as_string:
+            self.logger.info(f"Load development corpus...")
 
-        self.dev_corpus = Corpus(
-            sentences=list(Sentence.from_conllu(dev_as_string)),
-            vocabulary=self.vocabulary,
-            device=device
-        )
+            self.dev_corpus = Corpus(
+                sentences=list(Sentence.from_conllu(dev_as_string)),
+                vocabulary=self.vocabulary,
+                device=device
+            )
 
         self.test_corpus = None
         if test_as_string:
