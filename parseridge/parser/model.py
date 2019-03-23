@@ -237,10 +237,8 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             self.init()
 
             metric = batch_loss.item() + len(loss)
-            self.logger.info(f"Updated based on {len(loss)} losses.")
             loss = []
-        else:
-            self.logger.info(f"Skipping update, only {len(loss)} losses.")
+
         return loss, metric
 
     def forward(self, *input):

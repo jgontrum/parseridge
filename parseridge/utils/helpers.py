@@ -1,3 +1,5 @@
+from random import random
+
 import numpy as np
 import os
 from collections import namedtuple
@@ -87,3 +89,14 @@ def num_same_params(parameters1, parameters2):
     for p1, p2 in zip(parameters1, parameters2):
         cnt += int(p1 == p2)
     return cnt
+
+
+def set_seed(seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+        if torch.cuda.device_count() > 0:
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+            torch.cuda.manual_seed(seed)

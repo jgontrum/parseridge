@@ -31,7 +31,7 @@ def parse_cli_arguments():
     parser.add_argument(
         "--seed",
         type=int,
-        default=123456789,
+        default=None,
         help="Number to initialize randomness with.",
         required=False
     )

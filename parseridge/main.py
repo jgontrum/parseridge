@@ -12,7 +12,7 @@ from parseridge.corpus.treebank import Treebank
 from parseridge.parser.parseridge import ParseRidge
 from parseridge.utils.cli_parser import parse_cli_arguments
 from parseridge.utils.evaluate import CoNNLEvaluator
-from parseridge.utils.helpers import get_device
+from parseridge.utils.helpers import get_device, set_seed
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -22,11 +22,10 @@ def start():
     device = get_device()
     options = parse_cli_arguments()
 
-    # Set seed
-    seed = options.seed
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
+    if options.seed:
+        set_seed(options.seed)
+        logger.warning(f"Set seed to '{options.seed}'."
+                       f"This could have a performance impact when run on CUDA.")
 
     # Load data
     treebank = Treebank(

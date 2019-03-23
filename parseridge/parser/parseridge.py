@@ -332,19 +332,7 @@ class ParseRidge(LoggerMixin):
 
         finished_configurations = []
 
-        debug_sentence = False
-        for config in configurations:
-            for word in config.sentence:
-                if word.form.lower() == "deploy":
-                    debug_sentence = True
-                    print(f"Sentence: {config.sentence.id}")
-
         # Main loop for the sentences in this batch
-
-        self.sentence_counter += len(sentences)
-
-        self.logger.info(f"Taking over {len(loss)} losses.")
-
         while configurations:
             # Pass the stacks and buffers through the MLPs in one batch
             configurations = self._update_classification_scores(configurations)
@@ -412,11 +400,9 @@ class ParseRidge(LoggerMixin):
         # Perform back propagation
         new_losses = list(chain(*[configuration.loss for configuration in finished_configurations]))
 
-        self.logger.info(f"Adding over {len(new_losses)} losses.")
         loss += new_losses
         loss, stats = self.model.perform_back_propagation(loss)
 
-        self.logger.info(f"Leaving with {len(loss)} losses.")
         batch_metric.loss += stats
 
         return loss, batch_metric
