@@ -15,7 +15,7 @@ def test_read_and_serialize():
 2	Appreciation	appreciation	NOUN	NN	_	0	root	_	_
 3	and	and	CCONJ	CC	_	5	cc	_	_
 4	Spanish	Spanish	ADJ	JJ	_	5	amod	_	_
-5	Art	art	NOUN	NN	_	2	conj	_	_
+5	Art	art	NOUN	NN	_	2	conj	_	SpaceAfter=No
 6	:	:	PUNCT	:	_	2	punct	_	_
 
 """

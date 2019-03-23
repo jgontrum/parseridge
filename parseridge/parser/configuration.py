@@ -346,7 +346,7 @@ class Configuration:
 
         is_valid_transition = best_wrong_action.transition is not None
 
-        if no_swap_possible and is_valid_transition:
+        if error_probability > 0 and no_swap_possible and is_valid_transition:
             if not ((best_valid_action.score - best_wrong_action.score > 1.0) or (
                     best_valid_action.score > best_wrong_action.score
                     and random.random() > 0.1)):

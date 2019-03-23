@@ -36,4 +36,4 @@ class Relations:
 
     @property
     def relations(self):
-        return self.signature.get_ids()
+        return self.signature.get_items()

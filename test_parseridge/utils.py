@@ -24,7 +24,6 @@ def tokens_are_equal(token1, token2):
         assert token1.id == token2.id, f"'{token1.id}' != '{token2.id}'"
         assert token1.form == token2.form, f"'{token1.form}' != '{token2.form}'"
         assert token1.head == token2.head, f"'{token1.head}' != '{token2.head}'"
-        assert token1.deps == token2.deps, f"'{token1.deps}' != '{token2.deps}'"
         assert token1.relation == token2.relation, f"'{token1.relation}' != '{token2.relation}'"
         assert token1.is_root == token2.is_root, f"'{token1.is_root}' != '{token2.is_root}'"
         assert token1.dependents == token2.dependents, f"'{token1.dependents}' != '{token2.dependents}'"

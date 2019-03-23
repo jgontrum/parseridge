@@ -13,9 +13,9 @@ def test_load_treebank():
             device="cpu"
         )
 
-    assert treebank.vocabulary.get_ids() == [
-        '<<<OOV>>>', '<<<PADDING>>>', '*root*', 'Aesthetic', 'Appreciation', 'and',
-        'Spanish', 'Art', ':'
+    assert treebank.vocabulary.get_items() == [
+        '<<<oov>>>', '<<<padding>>>', '*root*', 'aesthetic', 'appreciation', 'and',
+        'spanish', 'art', ':'
     ]
 
     assert treebank.relations.relations == [
