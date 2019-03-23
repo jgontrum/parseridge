@@ -1,3 +1,4 @@
+import numpy as np
 import os
 from collections import namedtuple
 from enum import Enum
@@ -73,3 +74,16 @@ def create_dirs(path):
         os.makedirs(path)
     except FileExistsError:
         pass
+
+
+def get_parameters(model):
+    parameters = []
+    for p in model.parameters():
+        parameters.append(p.detach().cpu().numpy().flatten())
+    return np.concatenate(parameters)
+
+def num_same_params(parameters1, parameters2):
+    cnt = 0
+    for p1, p2 in zip(parameters1, parameters2):
+        cnt += int(p1 == p2)
+    return cnt

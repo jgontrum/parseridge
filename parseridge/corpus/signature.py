@@ -28,15 +28,16 @@ class Signature(LoggerMixin):
         self._read_only = True
 
     def add(self, item):
+        if self._read_only:
+            id_ = self._item_to_id.get(item, self.oov)
+            if id_ == self.oov and self._warn_on_oov:
+                self.logger.warning(f"Item not found: '{item}'")
+            return  id_
+
         self._item_to_count[item] += 1
 
         token_id = self._item_to_id.get(item)
         if token_id is None:
-            if self._read_only:
-                if self._warn_on_oov:
-                    self.logger.warning(f"Item not found: '{item}'")
-                return self.oov
-
             token_id = len(self._id_to_item)
             self._item_to_id[item] = token_id
             self._id_to_item.append(item)
@@ -56,7 +57,7 @@ class Signature(LoggerMixin):
             self.logger.warning(f"Item not found: '{id_}'")
         return self._id_to_item[self.oov]
 
-    def get_ids(self):
+    def get_items(self):
         return self._id_to_item
 
     def __len__(self):

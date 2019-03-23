@@ -11,7 +11,7 @@ class Relations:
                 if token.relation:
                     relations.add(token.relation)
 
-        relations = list(relations)
+        relations = list(sorted(relations))
 
         self.labels = [
             Relation(T.SHIFT, None),

@@ -33,6 +33,7 @@ class Configuration:
         self.buffer = [token.id for token in sentence][1:] + \
                       [sentence[0].id]  # Move the root token to the end
         self.num_swap = 0  # Used in prediction
+        self.loss = []
 
     def predict_actions(self):
         """
@@ -345,13 +346,11 @@ class Configuration:
 
         is_valid_transition = best_wrong_action.transition is not None
 
-        if False:#no_swap_possible and is_valid_transition:
-
+        if no_swap_possible and is_valid_transition:
             if not ((best_valid_action.score - best_wrong_action.score > 1.0) or (
                     best_valid_action.score > best_wrong_action.score
                     and random.random() > 0.1)):
                 best_action = best_wrong_action
-
 
         return best_action, best_valid_action, best_wrong_action
 

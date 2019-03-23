@@ -1,3 +1,4 @@
+import json
 import math
 import random
 from copy import deepcopy
@@ -60,9 +61,9 @@ class Corpus(Dataset, LoggerMixin):
         self.logger.info(f"The corpus contains {self.num_oov_tokens} OOV tokens.")
         self.logger.info("Copying sentence representation to device memory...")
         self.sentence_tensors = torch.tensor(
-            self.sentence_tensors, dtype=torch.long).to(self.device)
+            self.sentence_tensors, dtype=torch.long, device=self.device)
         self.sentence_token_freq_tensors = torch.tensor(
-            self.sentence_token_freq_tensors, dtype=torch.float).to(self.device)
+            self.sentence_token_freq_tensors, dtype=torch.float, device=self.device)
         self.logger.info("Done!")
 
     def _pad_list(self, list_, max_sentence_length):
@@ -96,7 +97,7 @@ class Corpus(Dataset, LoggerMixin):
         -------
         List of int
         """
-        tokens = [self.vocabulary.add(token.form) for token in sentence]
+        tokens = [self.vocabulary.get_id(token.form) for token in sentence]
         self.num_oov_tokens += tokens.count(self.vocabulary.get_id("<<<OOV>>>"))
 
         sentence_padded = self._pad_list(tokens, max(self.sentence_lengths))
@@ -137,6 +138,7 @@ class Corpus(Dataset, LoggerMixin):
 class CorpusIterator(LoggerMixin):
 
     def __init__(self, corpus, batch_size=48, shuffle=False, drop_last=False, train=False):
+        # TODO allennlp
         """
         Helper class to iterate over the batches produced by the Corpus class.
         Most importantly, it has the ability to shuffle the order of the batches.

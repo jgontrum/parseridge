@@ -1,3 +1,6 @@
+from itertools import chain
+
+import numpy as np
 import os
 from datetime import datetime
 from time import time
@@ -8,7 +11,8 @@ from tqdm import tqdm
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.model import ParseridgeModel
 from parseridge.utils.evaluate import CoNNLEvaluator
-from parseridge.utils.helpers import T, Metric, create_dirs
+from parseridge.utils.helpers import T, Metric, create_dirs, get_parameters, \
+    num_same_params
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -29,6 +33,8 @@ class ParseRidge(LoggerMixin):
         create_dirs(self.model_dir)
 
         self.device = device
+
+        self.sentence_counter = 0
 
         self.transition_stats = {
             "LEFT": 0,
@@ -63,6 +69,8 @@ class ParseRidge(LoggerMixin):
     def _run_prediction_batch(self, batch):
         pred_sentences = []
         gold_sentences = []
+
+        self.model.optimizer.zero_grad()
 
         sentence_features, sentences = batch
 
@@ -116,11 +124,23 @@ class ParseRidge(LoggerMixin):
         self.model = ParseridgeModel(
             relations=relations,
             vocabulary=corpus.vocabulary,
-            dropout=dropout,
+            dropout=0.0,
             device=self.device
         ).to(self.device)
 
         self.model.init()
+
+        old_params = {
+            "lstm": get_parameters(self.model.lstm),
+            "embeddings": get_parameters(self.model.word_embeddings),
+            "mlp_transitions": get_parameters(self.model.transition_mlp),
+            "mlp_labels": get_parameters(self.model.relation_mlp),
+            "mlp_padding": get_parameters(self.model.mlp_padding_linear)
+        }
+        self.logger.info(
+            f"Training {sum([len(p) for p in old_params.values()])} parameters.")
+
+        emb = list(self.model.word_embeddings.parameters())[0].detach().cpu().numpy()
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         self.model.optimizer = optimizer
@@ -131,6 +151,34 @@ class ParseRidge(LoggerMixin):
             t0 = time()
             self.logger.info(f"Starting epoch #{epoch + 1}...")
             epoch_metric = self._run_epoch(corpus, batch_size, error_prob)
+
+            self.logger.info(f"Sentences: {self.sentence_counter}!")
+            self.sentence_counter = 0
+
+            self.logger.info(f"Updates: {epoch_metric.num_errors}")
+
+            emb_new = list(self.model.word_embeddings.parameters())[0].detach().cpu().numpy()
+            for old, new, word in zip(emb, emb_new, self.model.vocabulary.get_items()):
+                eq = np.array_equal(old, new)
+                if eq:
+                    self.logger.info(f"No updates for word '{word}'!")
+            emb = emb_new
+
+            new_params = {
+                "lstm": get_parameters(self.model.lstm),
+                "embeddings": get_parameters(self.model.word_embeddings),
+                "mlp_transitions": get_parameters(self.model.transition_mlp),
+                "mlp_labels": get_parameters(self.model.relation_mlp),
+                "mlp_padding": get_parameters(self.model.mlp_padding_linear)
+            }
+
+            for k, v in old_params.items():
+                v2 = new_params[k]
+                no_updates = num_same_params(v, v2)
+                self.logger.info(
+                    f"No parameter update on {k} in {no_updates} / {len(v)} cases.")
+
+            old_params = new_params
 
             avg_loss = epoch_metric.loss / len(corpus)
             self.logger.info(f"Epoch loss: {avg_loss:.8f}")
@@ -282,7 +330,21 @@ class ParseRidge(LoggerMixin):
             zip(contextualized_tokens_batch, sentences)
         ]
 
+        finished_configurations = []
+
+        debug_sentence = False
+        for config in configurations:
+            for word in config.sentence:
+                if word.form.lower() == "deploy":
+                    debug_sentence = True
+                    print(f"Sentence: {config.sentence.id}")
+
         # Main loop for the sentences in this batch
+
+        self.sentence_counter += len(sentences)
+
+        self.logger.info(f"Taking over {len(loss)} losses.")
+
         while configurations:
             # Pass the stacks and buffers through the MLPs in one batch
             configurations = self._update_classification_scores(configurations)
@@ -329,18 +391,32 @@ class ParseRidge(LoggerMixin):
                     #     f"--MARGIN: {margin.item():.8f}"
                     # )
                     batch_metric.num_updates += 1
-                    loss.append(margin)
+                    configuration.loss.append(margin)
 
                 if best_action.transition in [T.LEFT_ARC, T.RIGHT_ARC]:
                     batch_metric.num_transitions += 1
                 if best_action != best_valid_action:
                     batch_metric.num_errors += 1
 
+                if configuration.is_terminal:
+                    if not configuration.loss:
+                        self.logger.warning(
+                            f"Parsing finished w/o loss for sentence:\n"
+                            f"{configuration.sentence}"
+                        )
+                    finished_configurations.append(configuration)
+
             # Remove all finished configurations
             configurations = [c for c in configurations if not c.is_terminal]
 
         # Perform back propagation
+        new_losses = list(chain(*[configuration.loss for configuration in finished_configurations]))
+
+        self.logger.info(f"Adding over {len(new_losses)} losses.")
+        loss += new_losses
         loss, stats = self.model.perform_back_propagation(loss)
+
+        self.logger.info(f"Leaving with {len(loss)} losses.")
         batch_metric.loss += stats
 
         return loss, batch_metric
@@ -386,6 +462,7 @@ class ParseRidge(LoggerMixin):
         right_arc_scores_sorted, right_arc_scores_indices = \
             torch.sort(right_arc_scores_batch, descending=True)
 
+        # TODO ???
         left_arc_scores_sorted = left_arc_scores_sorted[:, :2]
         right_arc_scores_sorted = right_arc_scores_sorted[:, :2]
 

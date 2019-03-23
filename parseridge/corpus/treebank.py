@@ -2,6 +2,7 @@ from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.sentence import Sentence
 from parseridge.corpus.signature import Signature
+from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -19,9 +20,7 @@ class Treebank(LoggerMixin):
         self.logger.info(f"Load training corpus...")
         train_sentences = list(Sentence.from_conllu(train_as_string))
 
-        self.vocabulary = Signature(
-            entries=["<<<OOV>>>", "<<<PADDING>>>"]
-        )
+        self.vocabulary = Vocabulary()
 
         self.relations = Relations(train_sentences)
 

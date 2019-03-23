@@ -49,11 +49,11 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         self.mlp_in_dim = (self.stack_size + self.buffer_size) * self.lstm_out_dim
 
         self.transition_mlp = MultilayerPerceptron(
-            self.mlp_in_dim, [125], self.num_transitions
+            self.mlp_in_dim, [100], self.num_transitions
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            self.mlp_in_dim, [125], self.num_labels
+            self.mlp_in_dim, [100], self.num_labels
         )
 
         self.mlp_padding_linear = nn.Sequential(
@@ -62,7 +62,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         )
 
         self._init_weights_xavier(self.word_embeddings)
-        # self._init_weights_xavier(self.lstm)
+        self._init_weights_xavier(self.lstm)
         self._init_weights_xavier(self.transition_mlp)
         self._init_weights_xavier(self.relation_mlp)
         self._init_weights_xavier(self.mlp_padding_linear)
@@ -77,17 +77,16 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             f"Stack size:     {self.stack_size}\n"
             f"Buffer size:    {self.buffer_size}\n"
             f"LSTM In:        {self.lstm_in_dim}\n"
-            f"LSTM Layers:    2\n"
+            f"LSTM Layers:    1\n"
             f"LSTM Hidden:    {self.hidden_dim}\n"
             f"LSTM Out:       {self.lstm_out_dim}\n"
             f"MLP In:         {self.mlp_in_dim}\n"
-            f"Relations:      {self.num_labels}"
+            f"Relations:      {self.num_labels}\n"
+            f"Vocabulary:     {len(self.vocabulary.get_items())}"
         )
 
     def init(self):
-        self._mlp_padding = self.mlp_padding_linear(
-            torch.zeros(self.lstm_in_dim, requires_grad=True).to(self.device)
-        )
+        self._mlp_padding = torch.zeros(self.lstm_out_dim, device=self.device)
 
     @staticmethod
     def _init_weights_xavier(network):
@@ -238,8 +237,10 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             self.init()
 
             metric = batch_loss.item() + len(loss)
+            self.logger.info(f"Updated based on {len(loss)} losses.")
             loss = []
-
+        else:
+            self.logger.info(f"Skipping update, only {len(loss)} losses.")
         return loss, metric
 
     def forward(self, *input):

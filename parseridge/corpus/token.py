@@ -4,11 +4,10 @@ from copy import copy
 
 class Token:
 
-    def __init__(self, id, form, head, deps, deprel, is_root=False, **kwargs):
+    def __init__(self, id, form, head, deprel, misc="_", is_root=False, **kwargs):
         self.id = id
         self.form = form
         self.head = head
-        self.deps = deps
         self.relation = deprel
         self.is_root = is_root
 
@@ -20,13 +19,14 @@ class Token:
         self.upostag = kwargs.get("upostag")
         self.xpostag = kwargs.get("xpostag")
 
+        self.misc = misc
+
     @classmethod
     def create_root_token(cls):
         return cls(
             id=0,
             form="*root*",
             head=None,
-            deps=None,
             deprel="rroot",
             is_root=True
         )
@@ -36,12 +36,12 @@ class Token:
             id=self.id,
             form=self.form,
             head=None,
-            deps=None,
             deprel=None,
             is_root=False,
             lemma=self.lemma,
             upostag=self.upostag,
-            xpostag=self.xpostag
+            xpostag=self.xpostag,
+            misc=self.misc
         )
 
     def serialize(self):
@@ -54,8 +54,8 @@ class Token:
             "feats": "_",
             "head": self.head,
             "deprel": self.relation,
-            "deps": self.deps,
-            "misc": "_"
+            "deps": "_",
+            "misc": self.misc
         }
         for k, v in copy(serialized).items():
             if v is None:

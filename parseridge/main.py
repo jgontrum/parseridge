@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 def start():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
     device = get_device()
     options = parse_cli_arguments()
 
@@ -44,7 +43,7 @@ def start():
         error_prob=options.error_probability,
         dropout=options.dropout,
         relations=treebank.relations,
-        num_epochs=60,
+        num_epochs=30,
         dev_corpus=treebank.dev_corpus
     )
 
