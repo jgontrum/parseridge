@@ -61,7 +61,7 @@ class TestParseProjective:
             configuration.select_actions(actions, costs, error_probability=0.0)
 
         assert best_action.transition == T.SHIFT
-        assert best_wrong_action == Action(None, None, self.model.negative_infinity)
+        assert best_wrong_action == Action.get_negative_action()
 
         # Update oracle
         sentence_before = deepcopy(configuration.sentence)
@@ -143,7 +143,7 @@ class TestParseProjective:
             configuration.select_actions(actions, costs, error_probability=0.0)
 
         assert best_action.transition == T.SHIFT
-        assert best_wrong_action == Action(None, None, self.model.negative_infinity)
+        assert best_wrong_action == Action.get_negative_action()
 
         # Update oracle
         sentence_before = deepcopy(configuration.sentence)

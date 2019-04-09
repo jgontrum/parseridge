@@ -1,13 +1,16 @@
 import conllu
 
 from parseridge.corpus.token import Token
+from parseridge.utils.logger import LoggerMixin
 
 
-class Sentence:
+class Sentence(LoggerMixin):
 
     def __init__(self, tokens, text=None, meta=None, sentence_id=None):
         self._iter = 0
         self.text = text
+        if not meta:
+            meta = {}
         self.meta = meta
         self.id = sentence_id
         self.tokens = [Token.create_root_token()] + tokens
@@ -68,7 +71,7 @@ class Sentence:
         gold annotations.
         """
         new_tokens = [token.get_unparsed_token() for token in self[1:]]
-        return Sentence(new_tokens, text=self.text, meta=self.meta)
+        return Sentence(new_tokens, text=self.text, meta=self.meta, sentence_id=self.id)
 
     def __repr__(self):
         return self.to_conllu().serialize()
@@ -101,7 +104,7 @@ class Sentence:
         """
         Generator that reads a string containing a treebank in CoNLL-U format
         and produces Sentence objects for all sentences in the treebank.
-        :param conllu_string:
+        :param conllutring:
         :return:
         """
         for sentence in conllu.parse(conllu_string):

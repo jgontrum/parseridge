@@ -1,8 +1,9 @@
 from parseridge.corpus.signature import Signature
 from parseridge.utils.helpers import Relation, T
+from parseridge.utils.logger import LoggerMixin
 
 
-class Relations:
+class Relations(LoggerMixin):
 
     def __init__(self, sentences):
         relations = set()
@@ -25,15 +26,16 @@ class Relations:
             self.labels.append(Relation(T.LEFT_ARC, relation))
             self.labels.append(Relation(T.RIGHT_ARC, relation))
 
-        self.num_relations = len(self.labels)
-
         self.slices = {
             T.SHIFT: slice(0, 1),
             T.SWAP: slice(1, 2),
-            T.LEFT_ARC: slice(2, self.num_relations, 2),
-            T.RIGHT_ARC: slice(3, self.num_relations, 2),
+            T.LEFT_ARC: slice(2, len(self.labels), 2),
+            T.RIGHT_ARC: slice(3, len(self.labels), 2),
         }
 
     @property
     def relations(self):
         return self.signature.get_items()
+
+    def __len__(self):
+        return len(self.labels)

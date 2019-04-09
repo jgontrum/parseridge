@@ -1,5 +1,7 @@
 import logging
 
+from torch import nn
+
 from parseridge.utils.helpers import Action
 
 
@@ -33,6 +35,7 @@ def tokens_are_equal(token1, token2):
         tokens_are_equal(token1.parent, token2.parent)
     return True
 
+
 def sentences_are_equal(sentence1, sentence2):
     assert len(sentence1) == len(sentence2)
     for token1, token2 in zip(sentence1, sentence2):
@@ -45,3 +48,11 @@ def generate_actions(transition, relations, best_relations):
         Action(relation, transition, float(relation in best_relations))
         for relation in relations
     ]
+
+
+def set_weights_to_one(model):
+    for name, param in model.named_parameters():
+        if 'bias' in name:
+            nn.init.constant_(param, 0.0)
+        elif 'weight' in name:
+            nn.init.constant_(param, 1.0)

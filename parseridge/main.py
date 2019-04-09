@@ -1,72 +1,61 @@
-import logging
-import torch
-
-import numpy as np
-
-import os
-from parseridge.corpus.corpus import Corpus
-from parseridge.corpus.sentence import Sentence
-from parseridge.corpus.signature import Signature
+import json
 
 from parseridge.corpus.treebank import Treebank
 from parseridge.parser.parseridge import ParseRidge
 from parseridge.utils.cli_parser import parse_cli_arguments
-from parseridge.utils.evaluate import CoNNLEvaluator
-from parseridge.utils.helpers import get_device, set_seed
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+from parseridge.utils.helpers import set_seed
+from parseridge.utils.logger import LoggerMixin
 
 
 def start():
-    device = get_device()
+    logger = LoggerMixin()._logger_setup("Parseridge CLI")
     options = parse_cli_arguments()
+
+    logger.info(
+        f"\nHyper Parameters: {json.dumps(vars(options), indent=2, sort_keys=True)}")
 
     if options.seed:
         set_seed(options.seed)
         logger.warning(f"Set seed to '{options.seed}'."
                        f"This could have a performance impact when run on CUDA.")
 
-    # Load data
-    treebank = Treebank(
-        open(options.train),
-        open(options.test),
-        device=device
-    )
+    if options.train:
+        # Load data
+        treebank = Treebank(
+            open(options.train_corpus),
+            open(options.test_corpus),
+            device=options.device
+        )
 
-    # Start training
-    parser = ParseRidge(device)
-    parser.fit(
-        treebank.train_corpus,
-        batch_size=options.batch_size,
-        error_prob=options.error_probability,
-        dropout=options.dropout,
-        relations=treebank.relations,
-        num_epochs=30,
-        dev_corpus=treebank.dev_corpus
-    )
+        # Start training
+        parser = ParseRidge(options.device)
+        parser.fit(
+            corpus=treebank.train_corpus,
+            relations=treebank.relations,
+            dev_corpus=treebank.dev_corpus,
+            num_stack=options.num_stack,
+            num_buffer=options.num_buffer,
+            embedding_size=options.embedding_size,
+            lstm_hidden_size=options.lstm_hidden_size,
+            lstm_layers=options.lstm_layers,
+            relation_mlp_layers=options.relation_mlp_layers,
+            transition_mlp_layers=options.transition_mlp_layers,
+            margin_threshold=options.margin_threshold,
+            error_probability=options.error_probability,
+            oov_probability=options.oov_probability,
+            token_dropout=options.token_dropout,
+            lstm_dropout=options.lstm_dropout,
+            mlp_dropout=options.mlp_dropout,
+            batch_size=options.batch_size,
+            num_epochs=options.epochs,
+            gradient_clipping=options.gradient_clipping,
+            weight_decay=options.weight_decay,
+            learning_rate=options.learning_rate,
+            update_size=options.update_size,
+            loss_factor=options.loss_factor,
+            loss_strategy=options.loss_strategy
+        )
 
-    # parser = ParseRidge(device)
-    # parser.load_model("models/model-20190214-121803.model")
-    # parser.model.vocabulary.read_only()
-    #
-    # dev_as_string = "".join(open(options.test))
-    # train_sentences = list(Sentence.from_conllu(dev_as_string))
-    # #
-    # corpus = Corpus(
-    #     sentences=train_sentences,
-    #     vocabulary=Signature(entries=["<<<PADDING>>>", "<<<OOV>>>"]),
-    #     device=device
-    # )
-    #
-    # for feats, sents in corpus.get_iterator(128, True, False):
-    #     print(len(sents))
-
-    #
-    # pred, gold = parser.predict(corpus)
-    #
-    # evaluator = CoNNLEvaluator()
-    # print(evaluator.get_las_score_for_sentences(pred, gold))
 
 if __name__ == '__main__':
     start()

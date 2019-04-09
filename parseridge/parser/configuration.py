@@ -1,9 +1,12 @@
-import random
+from random import random
+
+import numpy as np
 
 from parseridge.utils.helpers import Action, T, Transition
+from parseridge.utils.logger import LoggerMixin
 
 
-class Configuration:
+class Configuration(LoggerMixin):
 
     def __init__(self, sentence, contextualized_input, model):
         """
@@ -60,9 +63,7 @@ class Configuration:
             # root problem: Disallow left-arc from root
             # if stack has more than one element
             left_arc_conditions = left_arc_conditions and not \
-                (self.buffer
-                 and self.top_buffer_token.id == 0
-                 and len(self.stack) > 1)
+                (self.top_buffer_token.is_root and len(self.stack) > 1)
 
         # Now add all the possible transitions, together with
         # their score and the corresponding relation label
@@ -111,7 +112,6 @@ class Configuration:
                 best_score = best_scores[int(ignore_best)]
                 best_index = best_indices[int(ignore_best)]
 
-                # TODO check
                 best_label = self.model.relations.signature.get_item(best_index)
 
                 actions.append(
@@ -146,20 +146,24 @@ class Configuration:
                 )
 
         if shift_conditions:
+            tensor = self.scores[T.SHIFT][0]
+
             actions.append(
                 Action(
                     relation=None,
                     transition=T.SHIFT,
-                    score=self.scores[T.SHIFT][0]
+                    score=tensor
                 )
             )
 
         if swap_conditions:
+            tensor = self.scores[T.SWAP][0]
+
             actions.append(
                 Action(
                     relation=None,
                     transition=T.SWAP,
-                    score=self.scores[T.SWAP][0]
+                    score=tensor
                 )
             )
 
@@ -269,7 +273,7 @@ class Configuration:
 
         return costs, shift_case
 
-    def select_actions(self, actions, costs, error_probability=0.1):
+    def select_actions(self, actions, costs, error_probability=0.1, margin_threshold=2.5):
         """
         Given the predicted actions and the costs for the transitions,
         find the best action and the best wrong action. Both are needed
@@ -320,17 +324,22 @@ class Configuration:
 
         best_valid_action = self.get_best_action(valid_actions)
 
-        wrong_actions = list(set(actions).difference(set(valid_actions)))
+        # wrong_actions = list(set(actions).difference(set(valid_actions)))
+        wrong_actions = []
+        for action in actions:
+            if costs[action.transition] != 0 or (
+                    action.transition != T.SHIFT and
+                    action.transition != T.SWAP and
+                    action.relation != self.top_stack_token.relation
+            ):
+                wrong_actions.append(action)
+
         if wrong_actions:
             best_wrong_action = self.get_best_action(wrong_actions)
         else:
             # Add one negative action to make sure we have at least one
             # 'wrong' action to calculate the error against.
-            best_wrong_action = Action(
-                relation=None,
-                transition=None,
-                score=self.model.negative_infinity
-            )
+            best_wrong_action = Action.get_negative_action()
 
         # To make sure the model keeps learning and to make it more
         # robust, we let it make wrong decisions from time to time.
@@ -340,17 +349,18 @@ class Configuration:
 
         best_action = best_valid_action
         no_swap_possible = (
-            costs[T.SWAP] != 0
-            and best_wrong_action.transition != T.SWAP
+                costs[T.SWAP] != 0
+                and best_wrong_action.transition != T.SWAP
         )
 
         is_valid_transition = best_wrong_action.transition is not None
 
-        if error_probability > 0 and no_swap_possible and is_valid_transition:
-            if not ((best_valid_action.score - best_wrong_action.score > 1.0) or (
-                    best_valid_action.score > best_wrong_action.score
-                    and random.random() > 0.1)):
-                best_action = best_wrong_action
+        if (no_swap_possible
+                and is_valid_transition
+                and random() <= error_probability
+                and best_action.np_score > best_wrong_action.np_score + margin_threshold
+        ):
+            best_action = best_wrong_action
 
         return best_action, best_valid_action, best_wrong_action
 
@@ -449,7 +459,7 @@ class Configuration:
         if len(actions) == 1:
             return actions[0]
 
-        return max(actions, key=lambda action: action.score)
+        return max(actions, key=lambda action: action.np_score)
 
     @property
     def is_terminal(self):

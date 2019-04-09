@@ -444,12 +444,12 @@ class CoNNLEvaluator(LoggerMixin):
         """
         serialized_gold = [
             sentence.to_conllu().serialize()
-            for sentence in gold_sentences
+            for sentence in sorted(gold_sentences, key=lambda s: s.id)
         ]
 
         serialized_predicted = [
             sentence.to_conllu().serialize()
-            for sentence in predicted_sentences
+            for sentence in sorted(predicted_sentences, key=lambda s: s.id)
         ]
 
         gold_buffer = io.StringIO("".join(serialized_gold))

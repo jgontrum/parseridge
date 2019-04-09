@@ -1,11 +1,13 @@
-from random import random
-
-import numpy as np
 import os
 from collections import namedtuple
 from enum import Enum
+from typing import NamedTuple
 
+import numpy as np
 import torch
+
+from parseridge.corpus.sentence import Sentence
+from parseridge.utils.logger import LoggerMixin
 
 """
 Container to store a relation that is bound to a transition. 
@@ -18,28 +20,23 @@ Relation = namedtuple(
     ]
 )
 
-"""
-Container that represents a proposed action that the parser could perform.
-"""
-Action = namedtuple(
-    "Action",
-    [
-        "relation",
-        "transition",
-        "score"
-    ]
-)
+
+class Loss(NamedTuple):
+    loss: torch.tensor
+    tokens: list
+    sentence: Sentence
 
 
-class Metric:
+class Metric(LoggerMixin):
 
     def __init__(self, loss=0.0, num_updates=0, iterations=1, num_transitions=0,
-                 num_errors=0):
+                 num_errors=0, num_backprop=0):
         self.loss = loss
         self.num_updates = num_updates
         self.iterations = iterations
         self.num_transitions = num_transitions
         self.num_errors = num_errors
+        self.num_backprop = num_backprop
 
     def __add__(self, other):
         return Metric(
@@ -47,7 +44,8 @@ class Metric:
             self.num_updates + other.num_updates,
             self.iterations + other.iterations,
             self.num_transitions + other.num_transitions,
-            self.num_errors + other.num_errors
+            self.num_errors + other.num_errors,
+            self.num_backprop + other.num_backprop
         )
 
 
@@ -56,13 +54,33 @@ class Transition(Enum):
     Enumeration class to represent the different transitions in a more readable
     way.
     """
-    LEFT_ARC = 0
-    RIGHT_ARC = 1
-    SHIFT = 2
-    SWAP = 3
+    LEFT_ARC = 2
+    RIGHT_ARC = 3
+    SHIFT = 0
+    SWAP = 1
 
 
 T = Transition  # Shortcut to make the code less verbose
+
+
+class Action:
+    """
+    Container that represents a proposed action that the parser could perform.
+    """
+
+    def __init__(self, relation: Relation, transition: Transition, score: torch.tensor,
+                 np_score: np.array = None):
+        self.relation = relation
+        self.transition = transition
+        self.score = score
+        self.np_score = np_score
+
+        if isinstance(self.score, torch.Tensor):
+            self.np_score = self.score.item()
+
+    @classmethod
+    def get_negative_action(cls):
+        return cls(None, None, None, None)
 
 
 def get_device():
@@ -83,12 +101,6 @@ def get_parameters(model):
     for p in model.parameters():
         parameters.append(p.detach().cpu().numpy().flatten())
     return np.concatenate(parameters)
-
-def num_same_params(parameters1, parameters2):
-    cnt = 0
-    for p1, p2 in zip(parameters1, parameters2):
-        cnt += int(p1 == p2)
-    return cnt
 
 
 def set_seed(seed=None):

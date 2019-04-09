@@ -34,7 +34,7 @@ class Treebank(LoggerMixin):
 
         self.dev_corpus = None
         if dev_as_string:
-            self.logger.info(f"Load development corpus...")
+            self.logger.info(f"Loading development corpus...")
 
             self.dev_corpus = Corpus(
                 sentences=list(Sentence.from_conllu(dev_as_string)),
@@ -44,7 +44,7 @@ class Treebank(LoggerMixin):
 
         self.test_corpus = None
         if test_as_string:
-            self.logger.info(f"Load test corpus...")
+            self.logger.info(f"Loading test corpus...")
             self.test_corpus = Corpus(
                 sentences=list(Sentence.from_conllu(test_as_string)),
                 vocabulary=self.vocabulary,

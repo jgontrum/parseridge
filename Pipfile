@@ -9,6 +9,8 @@ torch = "*"
 torchvision = "*"
 tqdm = "*"
 numpy = "*"
+pymagnitude = "*"
+pandas = "*"
 
 [dev-packages]
 sphinx = "*"

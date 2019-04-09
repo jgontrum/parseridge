@@ -1,8 +1,10 @@
 from collections import OrderedDict
 from copy import copy
 
+from parseridge.utils.logger import LoggerMixin
 
-class Token:
+
+class Token(LoggerMixin):
 
     def __init__(self, id, form, head, deprel, misc="_", is_root=False, **kwargs):
         self.id = id

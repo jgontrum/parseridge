@@ -1,7 +1,7 @@
-import json
 import math
 import random
 from copy import deepcopy
+from itertools import chain
 
 import numpy as np
 import torch
@@ -103,30 +103,9 @@ class Corpus(Dataset, LoggerMixin):
         sentence_padded = self._pad_list(tokens, max(self.sentence_lengths))
 
         token_frequencies = [self.vocabulary.get_count(token.form) for token in sentence]
-        token_frequencies = [freq / (0.25 + freq) for freq in token_frequencies]
         frequencies_padded = self._pad_list(token_frequencies, max(self.sentence_lengths))
 
         return sentence_padded, frequencies_padded
-
-    def get_iterator(self, batch_size=32, shuffle=True, drop_last=False, train=False):
-        """
-        Returns an `CorpusIterator` object that is used to iterate over the
-        corpus using the given parameters.
-
-        Parameters
-        ----------
-        batch_size : int
-            Size of the batches that the iterator outputs.
-        shuffle : bool
-            Whether the order of the sentences is randomized.
-        drop_last : bool
-            If the last batch is smaller than `batch_size`, ignore it.
-
-        Returns
-        -------
-        CorpusIterator object
-        """
-        return CorpusIterator(self, batch_size, shuffle, drop_last, train)
 
     def __len__(self):
         return len(self.sentence_lengths)
@@ -137,8 +116,8 @@ class Corpus(Dataset, LoggerMixin):
 
 class CorpusIterator(LoggerMixin):
 
-    def __init__(self, corpus, batch_size=48, shuffle=False, drop_last=False, train=False):
-        # TODO allennlp
+    def __init__(self, corpus, batch_size=8, shuffle=False, drop_last=False, train=False,
+                 oov_probability=0.25, group_by_length=True, token_dropout=0.1):
         """
         Helper class to iterate over the batches produced by the Corpus class.
         Most importantly, it has the ability to shuffle the order of the batches.
@@ -157,32 +136,91 @@ class CorpusIterator(LoggerMixin):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.drop_last = drop_last
+        self.oov_probability = oov_probability
         self._iter = 0
 
         assert self.corpus.vocabulary.get_id("<<<OOV>>>") == 0
         assert self.corpus.vocabulary.get_id("<<<PADDING>>>") == 1
 
         self.sentence_tensors = self.corpus.sentence_tensors
-
-        if False:
-            frequency_tensors = self.corpus.sentence_token_freq_tensors
-            rand = frequency_tensors.data.new(frequency_tensors.size()).uniform_()
-            mask = torch.lt(rand, frequency_tensors).type(torch.long)
-
-            from functools import reduce
-            oov = int((reduce(lambda a, b: a * b, mask.size()) - torch.sum(mask)).item())
-            self.logger.info(f"Corpus iteration contains {oov} replaced OOV tokens.")
-            self.sentence_tensors = torch.mul(self.sentence_tensors, mask)
-
         self._num_batches = len(self.corpus) / self.batch_size
+
+        # Replace the ids of some infrequent words randomly with the OOV id to train
+        # the OOV embedding vector.
+        if train and oov_probability > 0:
+            self.sentence_tensors = self.replace_infrequent_words_with_oov(
+                self.sentence_tensors,
+                self.corpus.sentence_token_freq_tensors,
+                self.oov_probability
+            )
+
+        # As a regularization technique, we randomly replace tokens with the OOV id.
+        # In contrast to the OOV handling, this can affect all words.
+        # Note: The percentage of dropped out tokens is smaller than the dropout
+        # probability, as it is applied to the whole data, including the padding.
+        if train and token_dropout > 0:
+            self.sentence_tensors = self.apply_token_dropout(
+                self.sentence_tensors, p=token_dropout)
+
+        # If len(self.corpus) % self.batch_size != 0, one batch will be slightly
+        # larger / smaller than the other ones. Use drop_last to ignore this one batch.
         if self.drop_last:
             self._num_batches = math.floor(self._num_batches)
         else:
             self._num_batches = math.ceil(self._num_batches)
 
-        self._order = list(range(len(self.corpus)))
-        if self.shuffle:
-            random.shuffle(self._order)
+        # When using a batch_size > 1, performance and possibly accuracy can be improved
+        # by grouping sentences with similar length together to make better use of the
+        # batch processing. To do so, the content of all batches will be static,
+        # but their order will be randomized if shuffle is activated.
+        if group_by_length:
+            self._order = self.group_batches_by_length(
+                self.corpus.sentences, self.batch_size, self.shuffle
+            )
+        else:
+            # The naive way: Take the ids of all sentences and randomize them if wanted.
+            self._order = list(range(len(self.corpus)))
+
+            if self.shuffle:
+                random.shuffle(self._order)
+
+    @staticmethod
+    def replace_infrequent_words_with_oov(sentence_tensors, frequency_tensors,
+                                          oov_probability):
+        # Compute the relative frequency
+        oov_probability_tensor = torch.zeros_like(frequency_tensors).fill_(oov_probability)
+        frequency_tensors = frequency_tensors / (frequency_tensors + oov_probability_tensor)
+
+        rand = torch.rand_like(sentence_tensors, dtype=torch.float)
+        mask = torch.lt(rand, frequency_tensors).type(torch.long)
+        return torch.mul(sentence_tensors, mask)
+
+    @staticmethod
+    def apply_token_dropout(sentence_tensors, p):
+        dropout = torch.rand_like(sentence_tensors, dtype=torch.float).fill_(p)
+
+        rand = torch.rand_like(sentence_tensors, dtype=torch.float)
+        mask = torch.lt(dropout, rand).type(torch.long)
+        return torch.mul(sentence_tensors, mask)
+
+    @staticmethod
+    def group_batches_by_length(sentences, batch_size, shuffle):
+        sentences_sorted = [
+            sentence.id for sentence in
+            sorted(sentences, key=lambda s: len(s))
+        ]
+
+        # Make the list dividable by batch_size
+        rest_size = len(sentences_sorted) % batch_size
+        rest = sentences_sorted[-rest_size:]
+        order = sentences_sorted[:-rest_size]
+
+        chunks = np.array_split(order, len(order) / batch_size)
+
+        if shuffle:
+            random.shuffle(chunks)
+
+        return list(chain(*chunks)) + rest
 
     def __len__(self):
         return self._num_batches
