@@ -80,7 +80,7 @@ class Action:
 
     @classmethod
     def get_negative_action(cls):
-        return cls(None, None, None, None)
+        return cls(None, None, None, np.NINF)
 
 
 def get_device():

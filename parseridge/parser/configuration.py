@@ -1,7 +1,5 @@
 from random import random
 
-import numpy as np
-
 from parseridge.utils.helpers import Action, T, Transition
 from parseridge.utils.logger import LoggerMixin
 
