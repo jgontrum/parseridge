@@ -37,10 +37,13 @@ def initialize_xavier_dynet_(model, gain=1.0):
 
     """
     for name, param in model.named_parameters():
-        dim_len = len(param.size())
-        dims = sum(param.size())
-        scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
-        torch.nn.init.uniform_(param, -scale, scale)
+        if 'bias' in name:
+            nn.init.constant_(param, 0.0)
+        elif 'weight' in name:
+            dim_len = len(param.size())
+            dims = sum(param.size())
+            scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
+            torch.nn.init.uniform_(param, -scale, scale)
 
 
 def freeze(module):

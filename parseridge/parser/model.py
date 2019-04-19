@@ -3,6 +3,10 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.analysis.param_change import ParameterChangeAnalyzer
+from parseridge.parser.modules.actions_encoder import ActionsEncoder
+from parseridge.parser.modules.attention import Attention
+from parseridge.parser.modules.decoder import Decoder
+from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import initialize_xavier_dynet_
 from parseridge.utils.helpers import get_parameters
@@ -37,7 +41,6 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         self.mlp_dropout = mlp_dropout
 
         self.lstm_in_size = self.embedding_size
-        self.lstm_out_size = self.lstm_hidden_size * 2  # x 2 because of BiRNN
         self.lstm_layers = lstm_layers
 
         if relation_mlp_layers is None:
@@ -53,27 +56,41 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         self.stack_size = num_stack
         self.buffer_size = num_buffer
 
-        self.mlp_in_size = (self.stack_size + self.buffer_size) * self.lstm_out_size
-
         """ Module definitions """
 
-        self.word_embeddings = nn.Embedding(
-            num_embeddings=len(self.vocabulary),
-            embedding_dim=self.embedding_size,
-            padding_idx=self.vocabulary.get_id("<<<PADDING>>>"),
+        """RNN that encodes the input sentence."""
+        self.input_encoder = InputEncoder(
+            token_vocabulary=vocabulary,
+            token_embedding_size=embedding_size,
+            hidden_size=lstm_hidden_size,
+            layers=lstm_layers,
+            dropout=lstm_dropout,
+            device=device
         )
 
-        self.lstm = nn.LSTM(
-            input_size=self.lstm_in_size,
-            hidden_size=self.lstm_hidden_size,
-            num_layers=self.lstm_layers,
-            dropout=self.lstm_dropout,
-            bidirectional=True,
-            batch_first=True
+        """RNN that encodes a sequence of actions (e.g. transitions)."""
+        self.actions_encoder = ActionsEncoder(
+            input_size=32,
+            output_size=64,
+            num_layers=1
+        )
+
+        """ Computes attention over the output of the input encoder given the state of the
+        action encoder. """
+        self.attention = Attention(
+            method="concat",
+            hidden_size=self.input_encoder.output_size
+        )
+
+        """Given the output of the attention, computes a representation of the current
+        configuration. Output is passed to the MLPs"""
+        self.decoder = Decoder(
+            input_size=self.input_encoder.output_size + self.actions_encoder.output_size,
+            output_size=256
         )
 
         self.transition_mlp = MultilayerPerceptron(
-            input_size=self.mlp_in_size,
+            input_size=self.decoder.output_size,
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
@@ -81,36 +98,19 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            input_size=self.mlp_in_size,
+            input_size=self.decoder.output_size,
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
             activation=nn.Tanh
         )
 
-        self._mlp_padding_param = nn.Parameter(
-            torch.zeros(self.lstm_out_size, dtype=torch.float)
-        )
-
         initialize_xavier_dynet_(self)
-
-        """ Analytics & Logging """
-
-        self.param_analyzer = ParameterChangeAnalyzer()
-        self.param_analyzer.add_modules({
-            "Word embeddings": self.word_embeddings,
-            "LSTM": self.lstm,
-            "Transition MLP": self.transition_mlp,
-            "Relation MLP": self.relation_mlp,
-            "Tra MLP Last": self.transition_mlp.last_layer,
-            "Rel MLP Last": self.relation_mlp.last_layer,
-        })
-
         self.logger.info(f"Learning {len(get_parameters(self))} parameters.")
 
     # Hooks
     def before_batch(self):
-        self._mlp_padding = nn.Tanh()(self._mlp_padding_param)
+        pass
 
     def after_batch(self):
         pass
@@ -119,46 +119,19 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         self.zero_grad()
 
     def after_epoch(self):
-        self.param_analyzer.add_modules({
-            "Word embeddings": self.word_embeddings,
-            "LSTM": self.lstm,
-            "Transition MLP": self.transition_mlp,
-            "Relation MLP": self.relation_mlp,
-            "Tra MLP Last": self.transition_mlp.last_layer,
-            "Rel MLP Last": self.relation_mlp.last_layer,
-        }, report=True)
+        pass
+        # self.param_analyzer.add_modules({
+        #     "Word embeddings": self.word_embeddings,
+        #     "LSTM": self.lstm,
+        #     "Transition MLP": self.transition_mlp,
+        #     "Relation MLP": self.relation_mlp,
+        #     "Tra MLP Last": self.transition_mlp.last_layer,
+        #     "Rel MLP Last": self.relation_mlp.last_layer,
+        # }, report=True)
 
     def compute_lstm_output(self, sentences, sentence_features):
-        """
-
-        Parameters
-        ----------
-        sentences
-        sentence_features
-
-        Returns
-        -------
-
-        """
-        # Returns the LSTM outputs for every token in the sentence
-        tokens = sentence_features[:, 0, :]
-        tokens_embedded = self.word_embeddings(tokens)
-        sentence_lengths = [len(sentence) for sentence in sentences]
-
-        tokens_packed = pack_padded_sequence(
-            tokens_embedded,
-            torch.tensor(sentence_lengths, dtype=torch.int64, device=self.device),
-            batch_first=True
-        )
-
-        packed_output, _ = self.lstm(tokens_packed)
-
-        output, _ = pad_packed_sequence(
-            packed_output,
-            batch_first=True
-        )
-
-        return output.contiguous()
+        outputs, _ =  self.input_encoder(sentences, sentence_features)
+        return outputs
 
     @staticmethod
     def _get_tensor_for_indices(indices_batch, lstm_out_batch, padding, size):
@@ -203,3 +176,45 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         relations_output = self.relation_mlp(mlp_input)
 
         return transitions_output, relations_output
+
+    def forward(self, sentence_encoding_batch, action_encoding_batch, sentences,
+                prev_decoder_hidden_state_batch, prev_decoder_cell_state_batch):
+
+        batch_size = len(sentence_encoding_batch)
+
+        # Turn the lists of tensors into one tensor with a batch dimension
+        sentence_encoding_batch = torch.stack(sentence_encoding_batch)
+
+        if prev_decoder_hidden_state_batch[0] is not None:
+            prev_decoder_hidden_state_batch = torch.stack(prev_decoder_hidden_state_batch)
+            prev_decoder_cell_state_batch = torch.stack(prev_decoder_cell_state_batch)
+        else:
+            prev_decoder_hidden_state_batch = None
+            prev_decoder_cell_state_batch = None
+
+        # Run attention over the input sentence using the latest action encoding as input
+        attention_energies = self.attention(
+            action_encoding_batch,
+            sentence_encoding_batch,
+            src_len=[len(s) for s in sentences]
+        )
+
+        context = attention_energies.bmm(sentence_encoding_batch)
+
+        decoder_input = torch.cat((context, action_encoding_batch), dim=2)
+
+        # Feed context vector into decoder
+        mlp_input, decoder_hidden_states = self.decoder(
+            decoder_input,
+            prev_decoder_hidden_state_batch,
+            prev_decoder_cell_state_batch,
+            batch_size=batch_size
+        )
+
+        mlp_input = mlp_input.view(batch_size, -1)
+
+        # Use output and feed it into MLP
+        transitions_output = self.transition_mlp(mlp_input)
+        relations_output = self.relation_mlp(mlp_input)
+
+        return transitions_output, relations_output, decoder_hidden_states

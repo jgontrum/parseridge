@@ -1,6 +1,8 @@
 from datetime import datetime
 from time import time
+from typing import NamedTuple
 
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -61,6 +63,8 @@ class ParseRidge(LoggerMixin):
             update_size=update_size
         )
 
+        torch.autograd.set_detect_anomaly(True)
+
         for epoch in range(num_epochs):
             t0 = time()
             self.logger.info(f"Starting epoch #{epoch + 1}...")
@@ -71,7 +75,8 @@ class ParseRidge(LoggerMixin):
                 error_probability=error_probability,
                 margin_threshold=margin_threshold,
                 oov_probability=oov_probability,
-                token_dropout=token_dropout
+                token_dropout=token_dropout,
+                epoch=epoch
             )
 
             self.logger.info(f"Epoch loss: {epoch_metric.loss / len(corpus):.8f}")
@@ -107,7 +112,7 @@ class ParseRidge(LoggerMixin):
 
     def _run_epoch(self, corpus, batch_size=4, error_probability=0.1,
                    margin_threshold=2.5, oov_probability=0.25,
-                   token_dropout=0.01, update_pbar_interval=50):
+                   token_dropout=0.01, update_pbar_interval=50, epoch=None):
         """
         Wrapper that trains the model on the whole data set once.
 
@@ -153,7 +158,7 @@ class ParseRidge(LoggerMixin):
             ))
             for batch in iterator:
                 loss, batch_metric = self._run_training_batch(
-                    batch, loss, error_probability, margin_threshold)
+                    batch, loss, error_probability, margin_threshold, epoch=epoch)
 
                 epoch_metric += batch_metric
                 interval_metric += batch_metric
@@ -178,7 +183,7 @@ class ParseRidge(LoggerMixin):
         self.model.after_epoch()
         return epoch_metric
 
-    def _run_training_batch(self, batch, loss, error_probability, margin_threshold):
+    def _run_training_batch(self, batch, loss, error_probability, margin_threshold, epoch=None):
         """
         Trains the parser model on the data given in `batch` and performs
         back-propagation, if the number of updates is above a certain
@@ -365,11 +370,38 @@ class ParseRidge(LoggerMixin):
         :param configurations: List of not finished Configurations
         :return: Updated Configurations
         """
-        clf_transitions, clf_labels = self.model.compute_mlp_output(
-            [c.contextualized_input for c in configurations],
-            [c.stack for c in configurations],
-            [c.buffer for c in configurations]
+
+        """ Encode action sequence """
+        if all([configuration.actions_history for configuration in configurations]):
+            actions_encoding_batch, actions_encoder_hidden = \
+                self.model.actions_encoder(
+                    [c.actions_history[-1] for c in configurations],
+                    [c.actions_hidden_state for c in configurations],
+                    [c.actions_cell_state for c in configurations]
+                )
+        else:
+            # If this is the first iteration for the batch, we have to initialize the
+            # hidden state of the action encode
+            actions_encoding_batch, actions_encoder_hidden = \
+                self.model.actions_encoder.get_initial_state(
+                    batch_size=len(configurations)
+                )
+
+        actions_hidden_state_batch, actions_cell_state_batch = actions_encoder_hidden
+        actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
+        actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
+
+        clf_transitions, clf_labels, decoder_hidden = self.model(
+            sentence_encoding_batch=[c.contextualized_input for c in configurations],
+            action_encoding_batch=actions_encoding_batch,
+            sentences=[c.sentence for c in configurations],
+            prev_decoder_hidden_state_batch=[c.decoder_hidden_state for c in configurations],
+            prev_decoder_cell_state_batch=[c.decoder_cell_state for c in configurations]
         )
+
+        decoder_hidden_state_batch, decoder_cell_state_batch = decoder_hidden
+        decoder_hidden_state_batch = decoder_hidden_state_batch.transpose(0, 1)
+        decoder_cell_state_batch = decoder_cell_state_batch.transpose(0, 1)
 
         # Isolate the columns for the transitions
         left_arc = clf_transitions[:, T.LEFT_ARC.value].view(-1, 1)
@@ -405,26 +437,54 @@ class ParseRidge(LoggerMixin):
         left_arc_scores_indices = left_arc_scores_indices[:, :2].cpu().numpy()
         right_arc_scores_indices = right_arc_scores_indices[:, :2].cpu().numpy()
 
+        class Combination(NamedTuple):
+            configuration: Configuration
+
+            shift_score: torch.Tensor
+            swap_score: torch.Tensor
+
+            left_arc_scores: torch.Tensor
+            left_arc_scores_indices: np.array
+            left_arc_scores_sorted: torch.Tensor
+
+            right_arc_scores: torch.Tensor
+            right_arc_scores_indices: np.array
+            right_arc_scores_sorted: torch.Tensor
+
+            actions_hidden_state: torch.Tensor
+            actions_cell_state: torch.Tensor
+
+            decoder_hidden_state: torch.Tensor
+            decoder_cell_state: torch.Tensor
+
+            def apply(self):
+                self.configuration.scores = {
+                    T.SHIFT: self.shift_score,
+                    T.SWAP: self.swap_score,
+                    T.LEFT_ARC: self.left_arc_scores,
+                    (T.LEFT_ARC, "best_scores"): self.left_arc_scores_sorted,
+                    (T.LEFT_ARC, "best_scores_indices"): self.left_arc_scores_indices,
+                    T.RIGHT_ARC: self.right_arc_scores,
+                    (T.RIGHT_ARC, "best_scores"): self.right_arc_scores_sorted,
+                    (T.RIGHT_ARC, "best_scores_indices"): self.right_arc_scores_indices
+                }
+
+                self.configuration.actions_hidden_state = self.actions_hidden_state
+                self.configuration.actions_cell_state = self.actions_cell_state
+
+                self.configuration.decoder_hidden_state = self.decoder_hidden_state
+                self.configuration.decoder_cell_state = self.decoder_cell_state
+
         combinations = zip(
             configurations, shift_score_batch, swap_score_batch,
-            left_arc_scores_batch, right_arc_scores_batch,
-            left_arc_scores_sorted, left_arc_scores_indices,
-            right_arc_scores_sorted, right_arc_scores_indices
+            left_arc_scores_batch, left_arc_scores_indices, left_arc_scores_sorted,
+            right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted,
+            actions_hidden_state_batch, actions_cell_state_batch,
+            decoder_hidden_state_batch, decoder_cell_state_batch
         )
 
         # Update the result of the classifiers in the configurations
         for combination in combinations:
-            configuration = combination[0]
-
-            configuration.scores = {
-                T.SHIFT: combination[1],
-                T.SWAP: combination[2],
-                T.LEFT_ARC: combination[3],
-                T.RIGHT_ARC: combination[4],
-                (T.LEFT_ARC, "best_scores"): combination[5],
-                (T.LEFT_ARC, "best_scores_indices"): combination[6],
-                (T.RIGHT_ARC, "best_scores"): combination[7],
-                (T.RIGHT_ARC, "best_scores_indices"): combination[8],
-            }
+            Combination(*combination).apply()
 
         return configurations

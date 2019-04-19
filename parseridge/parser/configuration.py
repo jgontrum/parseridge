@@ -34,7 +34,13 @@ class Configuration(LoggerMixin):
         self.buffer = [token.id for token in sentence][1:] + \
                       [sentence[0].id]  # Move the root token to the end
         self.num_swap = 0  # Used in prediction
-        self.loss = []
+
+        self.actions_history = []
+        self.actions_hidden_state = None
+        self.actions_cell_state = None
+
+        self.decoder_hidden_state = None
+        self.decoder_cell_state = None
 
     def predict_actions(self):
         """
@@ -438,6 +444,8 @@ class Configuration(LoggerMixin):
             # Make an attachment in the tree
             self.predicted_sentence[dependent].head = parent
             self.predicted_sentence[dependent].relation = action.relation
+
+        self.actions_history.append(action)
 
     @staticmethod
     def get_best_action(actions):
