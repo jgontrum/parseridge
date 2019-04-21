@@ -391,17 +391,11 @@ class ParseRidge(LoggerMixin):
         actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
         actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
 
-        clf_transitions, clf_labels, decoder_hidden = self.model(
+        clf_transitions, clf_labels = self.model(
             sentence_encoding_batch=[c.contextualized_input for c in configurations],
             action_encoding_batch=actions_encoding_batch,
-            sentences=[c.sentence for c in configurations],
-            prev_decoder_hidden_state_batch=[c.decoder_hidden_state for c in configurations],
-            prev_decoder_cell_state_batch=[c.decoder_cell_state for c in configurations]
+            sentences=[c.sentence for c in configurations]
         )
-
-        decoder_hidden_state_batch, decoder_cell_state_batch = decoder_hidden
-        decoder_hidden_state_batch = decoder_hidden_state_batch.transpose(0, 1)
-        decoder_cell_state_batch = decoder_cell_state_batch.transpose(0, 1)
 
         # Isolate the columns for the transitions
         left_arc = clf_transitions[:, T.LEFT_ARC.value].view(-1, 1)
@@ -454,8 +448,8 @@ class ParseRidge(LoggerMixin):
             actions_hidden_state: torch.Tensor
             actions_cell_state: torch.Tensor
 
-            decoder_hidden_state: torch.Tensor
-            decoder_cell_state: torch.Tensor
+            # decoder_hidden_state: torch.Tensor
+            # decoder_cell_state: torch.Tensor
 
             def apply(self):
                 self.configuration.scores = {
@@ -472,15 +466,15 @@ class ParseRidge(LoggerMixin):
                 self.configuration.actions_hidden_state = self.actions_hidden_state
                 self.configuration.actions_cell_state = self.actions_cell_state
 
-                self.configuration.decoder_hidden_state = self.decoder_hidden_state
-                self.configuration.decoder_cell_state = self.decoder_cell_state
+                # self.configuration.decoder_hidden_state = self.decoder_hidden_state
+                # self.configuration.decoder_cell_state = self.decoder_cell_state
 
         combinations = zip(
             configurations, shift_score_batch, swap_score_batch,
             left_arc_scores_batch, left_arc_scores_indices, left_arc_scores_sorted,
             right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted,
             actions_hidden_state_batch, actions_cell_state_batch,
-            decoder_hidden_state_batch, decoder_cell_state_batch
+            # decoder_hidden_state_batch, decoder_cell_state_batch
         )
 
         # Update the result of the classifiers in the configurations

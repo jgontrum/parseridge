@@ -1,12 +1,10 @@
 import os
 from collections import namedtuple
 from enum import Enum
-from typing import NamedTuple
 
 import numpy as np
 import torch
 
-from parseridge.corpus.sentence import Sentence
 from parseridge.utils.logger import LoggerMixin
 
 """
@@ -19,12 +17,6 @@ Relation = namedtuple(
         "label"
     ]
 )
-
-
-class Loss(NamedTuple):
-    loss: torch.tensor
-    tokens: list
-    sentence: Sentence
 
 
 class Metric(LoggerMixin):

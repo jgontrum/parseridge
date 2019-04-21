@@ -1,3 +1,4 @@
+from itertools import chain
 from random import random
 
 from parseridge.utils.helpers import Action, T, Transition
@@ -42,6 +43,32 @@ class Configuration(LoggerMixin):
         self.decoder_hidden_state = None
         self.decoder_cell_state = None
 
+    @property
+    def left_arc_conditions(self):
+        left_arc_conditions = len(self.stack) > 0
+
+        if not self.in_training_mode:
+            # In evaluation mode, make sure to avoid the multiple
+            # root problem: Disallow left-arc from root
+            # if stack has more than one element
+            left_arc_conditions = left_arc_conditions and not \
+                (self.top_buffer_token.is_root and len(self.stack) > 1)
+
+        return left_arc_conditions
+
+    @property
+    def right_arc_conditions(self):
+        return len(self.stack) > 1
+
+    @property
+    def shift_conditions(self):
+        return not self.top_buffer_token.is_root
+
+    @property
+    def swap_conditions(self):
+        return len(self.stack) > 0 and \
+                          self.top_stack_token.id < self.top_buffer_token.id
+
     def predict_actions(self):
         """
         For the current stack, buffer and the output of the MLP in
@@ -55,25 +82,11 @@ class Configuration(LoggerMixin):
         """
         assert self.scores, "Assign the output of the MLP first."
 
-        # Check first which transitions are actually possible.
-        left_arc_conditions = len(self.stack) > 0
-        right_arc_conditions = len(self.stack) > 1
-        shift_conditions = not self.top_buffer_token.is_root
-        swap_conditions = len(self.stack) > 0 and \
-                          self.top_stack_token.id < self.top_buffer_token.id
-
-        if not self.in_training_mode:
-            # In evaluation mode, make sure to avoid the multiple
-            # root problem: Disallow left-arc from root
-            # if stack has more than one element
-            left_arc_conditions = left_arc_conditions and not \
-                (self.top_buffer_token.is_root and len(self.stack) > 1)
-
         # Now add all the possible transitions, together with
         # their score and the corresponding relation label
         # if it exists.
         actions = []
-        if left_arc_conditions or right_arc_conditions:
+        if self.left_arc_conditions or self.right_arc_conditions:
             # To optimize the speed, we only add the gold transition if we
             # are in training mode and the transitions with the second best
             # label, since all other actions will be ignored anyhow.
@@ -85,7 +98,7 @@ class Configuration(LoggerMixin):
                 gold_relation_index = \
                     self.model.relations.signature.get_id(gold_relation)
 
-                if left_arc_conditions:
+                if self.left_arc_conditions:
                     actions.append(
                         Action(
                             relation=gold_relation,
@@ -94,7 +107,7 @@ class Configuration(LoggerMixin):
                         )
                     )
 
-                if right_arc_conditions:
+                if self.right_arc_conditions:
                     actions.append(
                         Action(
                             relation=gold_relation,
@@ -103,7 +116,7 @@ class Configuration(LoggerMixin):
                         )
                     )
 
-            if left_arc_conditions:
+            if self.left_arc_conditions:
                 # Add the best left arc label action
                 best_indices = self.scores[(T.LEFT_ARC, "best_scores_indices")]
 
@@ -126,7 +139,7 @@ class Configuration(LoggerMixin):
                     )
                 )
 
-            if right_arc_conditions:
+            if self.right_arc_conditions:
                 # Add the best right arc label action
                 best_indices = self.scores[(T.RIGHT_ARC, "best_scores_indices")]
 
@@ -149,7 +162,7 @@ class Configuration(LoggerMixin):
                     )
                 )
 
-        if shift_conditions:
+        if self.shift_conditions:
             tensor = self.scores[T.SHIFT][0]
 
             actions.append(
@@ -160,7 +173,7 @@ class Configuration(LoggerMixin):
                 )
             )
 
-        if swap_conditions:
+        if self.swap_conditions:
             tensor = self.scores[T.SWAP][0]
 
             actions.append(
@@ -233,14 +246,13 @@ class Configuration(LoggerMixin):
         if actions[T.SHIFT] and self.buffer:
             rest_buffer_tokens = self.sentence[self.buffer[1:]]
 
-            in_projected_order = [
+            not_in_projected_order = [
                 token for token in rest_buffer_tokens
-                if
-                token.projective_order < self.top_buffer_token.projective_order
+                if token.projective_order < self.top_buffer_token.projective_order
                 and token.id > self.top_buffer_token.id
             ]
 
-            if in_projected_order:
+            if not_in_projected_order:
                 costs[T.SHIFT] = 0
                 shift_case = 1
 
@@ -265,15 +277,15 @@ class Configuration(LoggerMixin):
 
                 shift_case = 2
 
-            if actions[T.SWAP] and self.stack and self.buffer:
-                first_stack_token = self.sentence[self.stack[-1]]
-                first_buffer_token = self.sentence[self.buffer[0]]
+        if actions[T.SWAP] and self.stack and self.buffer:
+            first_stack_token = self.sentence[self.stack[-1]]
+            first_buffer_token = self.sentence[self.buffer[0]]
 
-                if (first_stack_token.projective_order >
-                        first_buffer_token.projective_order):
-                    # SWAP has priority, so disable all other options
-                    costs = {k: 1 for k in costs.keys()}
-                    costs[T.SWAP] = 0
+            if (first_stack_token.projective_order >
+                    first_buffer_token.projective_order):
+                # SWAP has priority, so disable all other options
+                costs = {k: 1 for k in costs.keys()}
+                costs[T.SWAP] = 0
 
         return costs, shift_case
 
@@ -485,4 +497,9 @@ class Configuration(LoggerMixin):
 
     @property
     def in_training_mode(self):
-        return self.model.training
+        return False if self.model is None else self.model.training
+
+    @property
+    def processed_tokens(self):
+        return set([token.id for token in self.sentence]) \
+               - set(chain(self.buffer, self.stack))

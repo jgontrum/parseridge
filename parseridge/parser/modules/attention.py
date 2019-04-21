@@ -44,12 +44,12 @@ class Attention(nn.Module):
             mask = torch.ByteTensor(mask, device=self.device)
             attn_energies = attn_energies.masked_fill(mask, -1e18)
 
-        return F.softmax(attn_energies).unsqueeze(1)  # normalize with softmax
+        return F.softmax(attn_energies, dim=0).unsqueeze(1)  # normalize with softmax
 
 
     def score(self, hidden, encoder_outputs):
         merged = torch.cat((hidden, encoder_outputs), 2)
-        energy = F.tanh(
+        energy = torch.tanh(
             self.attn(merged)
         )  # [B*T*2H]->[B*T*H]
 

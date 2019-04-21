@@ -1,6 +1,7 @@
+import numpy as np
 import torch
-
 import torch.nn as nn
+from pymagnitude import Magnitude
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
@@ -30,6 +31,24 @@ class InputEncoder(nn.Module):
             bidirectional=True,
             batch_first=True
         )
+
+    def load_external_embeddings(self):
+        vectors = Magnitude(
+            "http://magnitude.plasticity.ai/fasttext/medium"
+            "/wiki-news-300d-1M-subword.magnitude")
+
+        token_embedding_weights = np.concatenate((
+            [np.zeros(vectors.dim, dtype=float),
+             np.zeros(vectors.dim, dtype=float)],
+            vectors.query(
+                self.token_vocabulary.get_items()[2:])
+        ))
+
+        token_embedding_weights = torch.from_numpy(token_embedding_weights).float().to(self.device)
+        self.token_embeddings.weight = torch.nn.Parameter(
+            token_embedding_weights, requires_grad=True
+        )
+
 
     def _get_token_embeddings(self, sentence_features):
         tokens = sentence_features[:, 0, :]

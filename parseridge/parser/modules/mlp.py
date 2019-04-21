@@ -5,7 +5,7 @@ from parseridge.utils.logger import LoggerMixin
 
 class MultilayerPerceptron(nn.Module, LoggerMixin):
     def __init__(self, input_size, hidden_sizes, output_size,
-                 dropout=0.0, activation=nn.Tanh):
+                 dropout=0.0, activation=nn.Tanh, device="cpu"):
         super(MultilayerPerceptron, self).__init__()
 
         modules = []

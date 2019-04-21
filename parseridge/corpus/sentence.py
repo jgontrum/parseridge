@@ -1,6 +1,11 @@
+import random
+from copy import deepcopy
+
 import conllu
 
 from parseridge.corpus.token import Token
+from parseridge.parser.configuration import Configuration
+from parseridge.utils.helpers import Action, T
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -115,3 +120,84 @@ class Sentence(LoggerMixin):
                 text=sentence.metadata["text"],
                 meta=sentence.metadata
             )
+
+
+class ConfigurationIterator:
+    """
+    Iterates over a sequence of optimal configurations for this sentence.
+    Note that the yielded configuration object is mutable and will change during
+    the iteration!
+    """
+
+    def __init__(self, sentence):
+        self.sentence = deepcopy(sentence)
+        self.configuration = Configuration(
+            sentence=self.sentence,
+            contextualized_input=None,
+            model=None
+        )
+
+    def __next__(self):
+        if self.configuration.is_terminal:
+            raise StopIteration
+        else:
+            return self._get_next_configuration(self.configuration)
+
+    def __iter__(self):
+        return self
+
+    @staticmethod
+    def _get_next_configuration(configuration):
+        actions = ConfigurationIterator._get_actions(configuration)
+        costs, shift_case = configuration.get_transition_costs(actions)
+        valid_actions = [
+            action for action in actions
+            if costs[action.transition] == 0
+        ]
+
+        best_action = random.choice(valid_actions)
+        configuration.update_dynamic_oracle(best_action, shift_case)
+        configuration.apply_transition(best_action)
+
+        return configuration
+
+    @staticmethod
+    def _get_actions(configuration):
+        actions = []
+        if configuration.shift_conditions:
+            actions.append(
+                Action(
+                    relation=None,
+                    transition=T.SHIFT,
+                    score=1.0
+                )
+            )
+
+        if configuration.swap_conditions:
+            actions.append(
+                Action(
+                    relation=None,
+                    transition=T.SWAP,
+                    score=1.0
+                )
+            )
+
+        if configuration.left_arc_conditions:
+            actions.append(
+                Action(
+                    relation=configuration.top_stack_token.relation,
+                    transition=T.LEFT_ARC,
+                    score=1.0
+                )
+            )
+
+        if configuration.right_arc_conditions:
+            actions.append(
+                Action(
+                    relation=configuration.top_stack_token.relation,
+                    transition=T.RIGHT_ARC,
+                    score=1.0
+                )
+            )
+
+        return actions
