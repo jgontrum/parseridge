@@ -173,7 +173,7 @@ class CorpusIterator(LoggerMixin):
         # by grouping sentences with similar length together to make better use of the
         # batch processing. To do so, the content of all batches will be static,
         # but their order will be randomized if shuffle is activated.
-        if group_by_length:
+        if group_by_length and batch_size > 1:
             self._order = self.group_batches_by_length(
                 self.corpus.sentences, self.batch_size, self.shuffle
             )

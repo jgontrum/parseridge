@@ -259,15 +259,15 @@ class Configuration(LoggerMixin):
 
                 shift_case = 2
 
-            if actions[T.SWAP] and self.stack and self.buffer:
-                first_stack_token = self.sentence[self.stack[-1]]
-                first_buffer_token = self.sentence[self.buffer[0]]
+        if actions[T.SWAP] and self.stack and self.buffer:
+            first_stack_token = self.sentence[self.stack[-1]]
+            first_buffer_token = self.sentence[self.buffer[0]]
 
-                if (first_stack_token.projective_order >
-                        first_buffer_token.projective_order):
-                    # SWAP has priority, so disable all other options
-                    costs = {k: 1 for k in costs.keys()}
-                    costs[T.SWAP] = 0
+            if (first_stack_token.projective_order >
+                    first_buffer_token.projective_order):
+                # SWAP has priority, so disable all other options
+                costs = {k: 1 for k in costs.keys()}
+                costs[T.SWAP] = 0
 
         return costs, shift_case
 
