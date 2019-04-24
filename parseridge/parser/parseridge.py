@@ -63,7 +63,7 @@ class ParseRidge(LoggerMixin):
             update_size=update_size
         )
 
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
 
         for epoch in range(num_epochs):
             t0 = time()
@@ -298,7 +298,7 @@ class ParseRidge(LoggerMixin):
         iterator = CorpusIterator(corpus, batch_size=batch_size, train=False)
         with tqdm(
                 total=len(corpus),
-                desc=f"Predicting sentences...",
+                desc="Predicting sentences...",
                 leave=not remove_pbar
         ) as pbar:
             for batch in iterator:
@@ -372,29 +372,33 @@ class ParseRidge(LoggerMixin):
         """
 
         """ Encode action sequence """
-        if all([configuration.actions_history for configuration in configurations]):
-            actions_encoding_batch, actions_encoder_hidden = \
-                self.model.actions_encoder(
-                    [c.actions_history[-1] for c in configurations],
-                    [c.actions_hidden_state for c in configurations],
-                    [c.actions_cell_state for c in configurations]
-                )
-        else:
-            # If this is the first iteration for the batch, we have to initialize the
-            # hidden state of the action encode
-            actions_encoding_batch, actions_encoder_hidden = \
-                self.model.actions_encoder.get_initial_state(
-                    batch_size=len(configurations)
-                )
-
-        actions_hidden_state_batch, actions_cell_state_batch = actions_encoder_hidden
-        actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
-        actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
+        # if all([configuration.actions_history for configuration in configurations]):
+        #     actions_encoding_batch, actions_encoder_hidden = \
+        #         self.model.actions_encoder(
+        #             [c.actions_history[-1] for c in configurations],
+        #             [c.actions_hidden_state for c in configurations],
+        #             [c.actions_cell_state for c in configurations]
+        #         )
+        # else:
+        #     # If this is the first iteration for the batch, we have to initialize the
+        #     # hidden state of the action encode
+        #     actions_encoding_batch, actions_encoder_hidden = \
+        #         self.model.actions_encoder.get_initial_state(
+        #             batch_size=len(configurations)
+        #         )
+        #
+        # actions_hidden_state_batch, actions_cell_state_batch = actions_encoder_hidden
+        # actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
+        # actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
 
         clf_transitions, clf_labels = self.model(
             sentence_encoding_batch=[c.contextualized_input for c in configurations],
-            action_encoding_batch=actions_encoding_batch,
-            sentences=[c.sentence for c in configurations]
+            action_encoding_batch=None, #actions_encoding_batch,
+            sentences=[c.sentence for c in configurations],
+            predicted_sentences_batch=[c.predicted_sentence for c in configurations],
+            stack_index_batch=[c.stack for c in configurations],
+            buffer_index_batch=[c.buffer for c in configurations],
+            use_legacy=True
         )
 
         # Isolate the columns for the transitions
@@ -445,8 +449,8 @@ class ParseRidge(LoggerMixin):
             right_arc_scores_indices: np.array
             right_arc_scores_sorted: torch.Tensor
 
-            actions_hidden_state: torch.Tensor
-            actions_cell_state: torch.Tensor
+            # actions_hidden_state: torch.Tensor
+            # actions_cell_state: torch.Tensor
 
             # decoder_hidden_state: torch.Tensor
             # decoder_cell_state: torch.Tensor
@@ -463,8 +467,8 @@ class ParseRidge(LoggerMixin):
                     (T.RIGHT_ARC, "best_scores_indices"): self.right_arc_scores_indices
                 }
 
-                self.configuration.actions_hidden_state = self.actions_hidden_state
-                self.configuration.actions_cell_state = self.actions_cell_state
+                # self.configuration.actions_hidden_state = self.actions_hidden_state
+                # self.configuration.actions_cell_state = self.actions_cell_state
 
                 # self.configuration.decoder_hidden_state = self.decoder_hidden_state
                 # self.configuration.decoder_cell_state = self.decoder_cell_state
@@ -473,7 +477,7 @@ class ParseRidge(LoggerMixin):
             configurations, shift_score_batch, swap_score_batch,
             left_arc_scores_batch, left_arc_scores_indices, left_arc_scores_sorted,
             right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted,
-            actions_hidden_state_batch, actions_cell_state_batch,
+            #actions_hidden_state_batch, actions_cell_state_batch,
             # decoder_hidden_state_batch, decoder_cell_state_batch
         )
 

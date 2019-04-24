@@ -64,7 +64,6 @@ class Corpus(Dataset, LoggerMixin):
             self.sentence_tensors, dtype=torch.long, device=self.device)
         self.sentence_token_freq_tensors = torch.tensor(
             self.sentence_token_freq_tensors, dtype=torch.float, device=self.device)
-        self.logger.info("Done!")
 
     def _pad_list(self, list_, max_sentence_length):
         """

@@ -6,6 +6,7 @@ from parseridge.analysis.param_change import ParameterChangeAnalyzer
 from parseridge.parser.modules.actions_encoder import ActionsEncoder
 from parseridge.parser.modules.attention import Attention
 from parseridge.parser.modules.decoder import Decoder
+from parseridge.parser.modules.dependency_graph_encoder import DependencyGraphEncoder
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import initialize_xavier_dynet_
@@ -61,7 +62,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         """RNN that encodes the input sentence."""
         self.input_encoder = InputEncoder(
             token_vocabulary=vocabulary,
-            token_embedding_size=300,
+            token_embedding_size=embedding_size,
             hidden_size=lstm_hidden_size,
             layers=lstm_layers,
             dropout=lstm_dropout,
@@ -76,7 +77,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             device=device
         )
 
-        """ Computes attention over the output of the input encoder given the state of the
+        """Computes attention over the output of the input encoder given the state of the
         action encoder. """
         self.attention = Attention(
             method="concat",
@@ -84,8 +85,16 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             device=device
         )
 
+        """RNN to encode the partial dependency graph."""
+        self.dependency_graph_encoder = DependencyGraphEncoder(
+            input_size=embedding_size,
+            output_size=512,
+            relations=self.relations,
+            device=device
+        )
+
         self.transition_mlp = MultilayerPerceptron(
-            input_size=self.input_encoder.output_size + self.actions_encoder.output_size,
+            input_size=self.input_encoder.output_size * 4 + 1024,
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
@@ -94,7 +103,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            input_size=self.input_encoder.output_size + self.actions_encoder.output_size,
+            input_size=self.input_encoder.output_size * 4 + 1024,
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
@@ -102,14 +111,19 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             device=device
         )
 
+        self._mlp_padding_param = nn.Parameter(
+            torch.zeros(self.input_encoder.output_size, dtype=torch.float)
+        )
+
         initialize_xavier_dynet_(self)
 
-        self.input_encoder.load_external_embeddings()
+        self.logger.info("Loading external word embeddings...")
+        # self.input_encoder.load_external_embeddings()
         self.logger.info(f"Learning {len(get_parameters(self))} parameters.")
 
     # Hooks
     def before_batch(self):
-        pass
+        self._mlp_padding = torch.tanh(self._mlp_padding_param)
 
     def after_batch(self):
         pass
@@ -119,14 +133,6 @@ class ParseridgeModel(nn.Module, LoggerMixin):
 
     def after_epoch(self):
         pass
-        # self.param_analyzer.add_modules({
-        #     "Word embeddings": self.word_embeddings,
-        #     "LSTM": self.lstm,
-        #     "Transition MLP": self.transition_mlp,
-        #     "Relation MLP": self.relation_mlp,
-        #     "Tra MLP Last": self.transition_mlp.last_layer,
-        #     "Rel MLP Last": self.relation_mlp.last_layer,
-        # }, report=True)
 
     def compute_lstm_output(self, sentences, sentence_features):
         outputs, _ =  self.input_encoder(sentences, sentence_features)
@@ -154,7 +160,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
     def _concatenate_stack_and_buffer(stack, buffer):
         return torch.cat((stack, buffer), dim=1)
 
-    def compute_mlp_output(self, lstm_out_batch, stack_index_batch, buffer_index_batch):
+    def compute_legacy_mlp_input(self, lstm_out_batch, stack_index_batch, buffer_index_batch):
         stack_batch = self._get_tensor_for_indices(
             indices_batch=[stack[-self.stack_size:] for stack in stack_index_batch],
             lstm_out_batch=lstm_out_batch,
@@ -169,31 +175,39 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             size=self.buffer_size
         )
 
-        mlp_input = self._concatenate_stack_and_buffer(stack_batch, buffer_batch)
+        return self._concatenate_stack_and_buffer(stack_batch, buffer_batch)
 
-        transitions_output = self.transition_mlp(mlp_input)
-        relations_output = self.relation_mlp(mlp_input)
-
-        return transitions_output, relations_output
-
-    def forward(self, sentence_encoding_batch, action_encoding_batch, sentences):
+    def forward(self, sentence_encoding_batch, action_encoding_batch, sentences,
+                predicted_sentences_batch,
+                stack_index_batch=None, buffer_index_batch=None, use_legacy=False):
 
         batch_size = len(sentence_encoding_batch)
 
-        # Turn the lists of tensors into one tensor with a batch dimension
-        sentence_encoding_batch = torch.stack(sentence_encoding_batch)
+        if use_legacy and stack_index_batch and buffer_index_batch:
+            mlp_input = self.compute_legacy_mlp_input(
+                sentence_encoding_batch, stack_index_batch, buffer_index_batch
+            )
 
-        # Run attention over the input sentence using the latest action encoding as input
-        attention_energies = self.attention(
-            action_encoding_batch,
-            sentence_encoding_batch,
-            src_len=[len(s) for s in sentences]
-        )
+            graph_encoding = self.dependency_graph_encoder(
+                predicted_sentences_batch, sentence_encoding_batch)
 
-        context = attention_energies.bmm(sentence_encoding_batch)
+            mlp_input = torch.cat((mlp_input, graph_encoding), dim=1)
 
-        mlp_input = torch.cat((context, action_encoding_batch), dim=2)
-        mlp_input = mlp_input.view((batch_size, 189))
+        else:
+            # Turn the lists of tensors into one tensor with a batch dimension
+            sentence_encoding_batch = torch.stack(sentence_encoding_batch)
+
+            # Run attention over the input sentence using the latest action encoding as input
+            attention_energies = self.attention(
+                action_encoding_batch,
+                sentence_encoding_batch,
+                src_len=[len(s) for s in sentences]
+            )
+
+            context = attention_energies.bmm(sentence_encoding_batch)
+
+            mlp_input = torch.cat((context, action_encoding_batch), dim=2)
+            mlp_input = mlp_input.view((batch_size, 189))
 
         # Use output and feed it into MLP
         transitions_output = self.transition_mlp(mlp_input)

@@ -54,3 +54,12 @@ def freeze(module):
 def unfreeze(module):
     for param in module.parameters():
         param.requires_grad = True
+
+
+def add_padding(sequence, length, padding_item):
+    assert len(sequence) <= length
+
+    while len(sequence) < length:
+        sequence.append(padding_item)
+
+    return sequence
