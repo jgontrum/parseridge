@@ -4,8 +4,10 @@ import torch.nn as nn
 from pymagnitude import Magnitude
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from parseridge.parser.modules.data_parallel import Module
 
-class InputEncoder(nn.Module):
+
+class InputEncoder(Module):
     def __init__(self, token_vocabulary, token_embedding_size,
                  hidden_size, layers=2, dropout=0.33, device="cpu"):
         super(InputEncoder, self).__init__()

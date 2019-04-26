@@ -2,16 +2,17 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.utils import add_padding
 
 
-class DependencyGraphEncoder(nn.Module):
+class DependencyGraphEncoder(Module):
     def __init__(self, input_size, output_size, relations, relation_embedding_size=64,
                  num_layers=1, device="cpu"):
         super(DependencyGraphEncoder, self).__init__()
         self.device = device
 
-        self.lstm_input_size = 414
+        self.lstm_input_size = input_size * 3 + relation_embedding_size
         self.lstm_output_size = output_size
 
         self.input_size = input_size
@@ -54,9 +55,11 @@ class DependencyGraphEncoder(nn.Module):
             head_representation = contextualized_tokens[token.head] \
                 if token.head is not None else self.token_padding
 
+            assert head_representation.size()[0] == self.token_padding.size()[0]
+
             if token.dependents:
-                dependents_representation = (
-                    contextualized_tokens[dependent.id] for dependent in token.dependents
+                dependents_representation = tuple(
+                    contextualized_tokens[dependent] for dependent in token.dependents
                 )
 
                 dependents_representation = torch.sum(
@@ -65,9 +68,12 @@ class DependencyGraphEncoder(nn.Module):
             else:
                 dependents_representation = self.token_padding
 
+            assert dependents_representation.size()[0] == self.token_padding.size()[0]
+
             relation_representation = self.relation_embedding(
                 torch.tensor(self.relations.signature.get_id(token.relation), device=self.device)
             )
+            assert relation_representation.size()[0] == self.relation_embedding_size
 
             node_representation = (
                 token_representation,

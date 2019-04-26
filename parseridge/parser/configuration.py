@@ -456,6 +456,7 @@ class Configuration(LoggerMixin):
             # Make an attachment in the tree
             self.predicted_sentence[dependent].head = parent
             self.predicted_sentence[dependent].relation = action.relation
+            self.predicted_sentence[parent].dependents.append(dependent)
 
         self.actions_history.append(action)
 

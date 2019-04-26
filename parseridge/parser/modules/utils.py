@@ -63,3 +63,17 @@ def add_padding(sequence, length, padding_item):
         sequence.append(padding_item)
 
     return sequence
+
+
+def create_mask(lengths, max_len=None, device="cpu"):
+    if not max_len:
+        max_len = max(lengths)
+
+    # Build a mask that has a 0 for words and a 1 for the padding.
+    mask = [
+        [0] * length + [1] * (max_len - length)
+        for length in lengths
+    ]
+
+    # Create a ByteTensor on the given device and return it.
+    return torch.tensor(mask, device=device, dtype=torch.uint8)

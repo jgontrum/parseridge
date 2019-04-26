@@ -47,6 +47,7 @@ def start():
             lstm_dropout=options.lstm_dropout,
             mlp_dropout=options.mlp_dropout,
             batch_size=options.batch_size,
+            pred_batch_size=options.pred_batch_size,
             num_epochs=options.epochs,
             gradient_clipping=options.gradient_clipping,
             weight_decay=options.weight_decay,

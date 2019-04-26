@@ -3,8 +3,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from parseridge.parser.modules.data_parallel import Module
 
-class ActionsEncoder(nn.Module):
+
+class ActionsEncoder(Module):
     def __init__(self, input_size, output_size, num_layers, device="cpu"):
         super(ActionsEncoder, self).__init__()
         self.device = device

@@ -232,4 +232,12 @@ def parse_cli_arguments():
         required=False
     )
 
+    parser.add_argument(
+        "--pred_batch_size",
+        type=int,
+        default=512,
+        help="Predict number of sentences per batch.",
+        required=False
+    )
+
     return parser.parse_args()

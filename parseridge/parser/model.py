@@ -5,16 +5,17 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from parseridge.analysis.param_change import ParameterChangeAnalyzer
 from parseridge.parser.modules.actions_encoder import ActionsEncoder
 from parseridge.parser.modules.attention import Attention
+from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.decoder import Decoder
 from parseridge.parser.modules.dependency_graph_encoder import DependencyGraphEncoder
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import initialize_xavier_dynet_
+from parseridge.parser.modules.utils import initialize_xavier_dynet_, create_mask
 from parseridge.utils.helpers import get_parameters
 from parseridge.utils.logger import LoggerMixin
 
 
-class ParseridgeModel(nn.Module, LoggerMixin):
+class ParseridgeModel(Module):
 
     def __init__(self, relations, vocabulary,
                  num_stack=3,
@@ -80,21 +81,29 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
         self.attention = Attention(
-            method="concat",
-            hidden_size=self.input_encoder.output_size,
+            input_size=self.input_encoder.output_size,
             device=device
         )
 
         """RNN to encode the partial dependency graph."""
         self.dependency_graph_encoder = DependencyGraphEncoder(
-            input_size=embedding_size,
+            input_size=lstm_hidden_size,
             output_size=512,
             relations=self.relations,
             device=device
         )
 
+        """Given the output of the attention, computes a representation of the current
+        configuration. Output is passed to the MLPs"""
+        self.decoder = Decoder(
+            input_size=1149, #self.input_encoder.output_size + self.actions_encoder.output_size,
+            output_size=512,
+            device=device
+        )
+
+
         self.transition_mlp = MultilayerPerceptron(
-            input_size=self.input_encoder.output_size * 4 + 1024,
+            input_size=125, #self.input_encoder.output_size * 4 + 1024,
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
@@ -103,7 +112,7 @@ class ParseridgeModel(nn.Module, LoggerMixin):
         )
 
         self.relation_mlp = MultilayerPerceptron(
-            input_size=self.input_encoder.output_size * 4 + 1024,
+            input_size=125,
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
@@ -179,7 +188,9 @@ class ParseridgeModel(nn.Module, LoggerMixin):
 
     def forward(self, sentence_encoding_batch, action_encoding_batch, sentences,
                 predicted_sentences_batch,
-                stack_index_batch=None, buffer_index_batch=None, use_legacy=False):
+                # prev_decoder_hidden_state_batch, prev_decoder_cell_state_batch,
+                stack_index_batch=None, buffer_index_batch=None, use_legacy=False,
+                ):
 
         batch_size = len(sentence_encoding_batch)
 
@@ -197,20 +208,47 @@ class ParseridgeModel(nn.Module, LoggerMixin):
             # Turn the lists of tensors into one tensor with a batch dimension
             sentence_encoding_batch = torch.stack(sentence_encoding_batch)
 
+            # if prev_decoder_hidden_state_batch[0] is not None:
+            #     prev_decoder_hidden_state_batch = torch.stack(
+            #         prev_decoder_hidden_state_batch)
+            #     prev_decoder_cell_state_batch = torch.stack(prev_decoder_cell_state_batch)
+            # else:
+            #     prev_decoder_hidden_state_batch = None
+            #     prev_decoder_cell_state_batch = None
+            #
+            # graph_encoding = self.dependency_graph_encoder(
+            #     predicted_sentences_batch, sentence_encoding_batch).unsqueeze(1)
+
             # Run attention over the input sentence using the latest action encoding as input
-            attention_energies = self.attention(
-                action_encoding_batch,
-                sentence_encoding_batch,
-                src_len=[len(s) for s in sentences]
+            # attention_energies = self.attention(
+            #     graph_encoding,
+            #     sentence_encoding_batch,
+            #     src_len=[len(s) for s in sentences]
+            # )
+            #
+            # context = attention_energies.bmm(sentence_encoding_batch)
+
+            # decoder_input = torch.cat((context, graph_encoding), dim=2)
+
+            sentence_batch_mask = create_mask(
+                [len(s) for s in sentences],
+                max_len=sentence_encoding_batch.size(1),
+                device=self.device
             )
 
-            context = attention_energies.bmm(sentence_encoding_batch)
+            mlp_input = self.attention(sentence_encoding_batch, mask=sentence_batch_mask)
 
-            mlp_input = torch.cat((context, action_encoding_batch), dim=2)
-            mlp_input = mlp_input.view((batch_size, 189))
+            # mlp_input, decoder_hidden_states = self.decoder(
+            #     decoder_input,
+            #     prev_decoder_hidden_state_batch,
+            #     prev_decoder_cell_state_batch,
+            #     batch_size=batch_size
+            # )
+            #
+            # mlp_input = mlp_input.view(batch_size, -1)
 
         # Use output and feed it into MLP
         transitions_output = self.transition_mlp(mlp_input)
         relations_output = self.relation_mlp(mlp_input)
 
-        return transitions_output, relations_output
+        return transitions_output, relations_output#, decoder_hidden_states

@@ -34,8 +34,8 @@ class ParseRidge(LoggerMixin):
             embedding_size=100, lstm_hidden_size=125, lstm_layers=2,
             relation_mlp_layers=None, transition_mlp_layers=None, margin_threshold=2.5,
             error_probability=0.1, oov_probability=0.25, token_dropout=0.01,
-            lstm_dropout=0.33, mlp_dropout=0.25, batch_size=4, num_epochs=3,
-            gradient_clipping=10.0, weight_decay=0.0, learning_rate=0.001,
+            lstm_dropout=0.33, mlp_dropout=0.25, batch_size=4, pred_batch_size=512,
+            num_epochs=3, gradient_clipping=10.0, weight_decay=0.0, learning_rate=0.001,
             update_size=50, loss_factor=0.75, loss_strategy="avg"):
 
         self.model = ParseridgeModel(
@@ -86,7 +86,7 @@ class ParseRidge(LoggerMixin):
 
             # Evaluate on training corpus
             train_scores = CoNNLEvaluator().get_las_score_for_sentences(
-                *self.predict(corpus))
+                *self.predict(corpus, batch_size=pred_batch_size))
             self.logger.info(
                 f"Performance on the training set after {epoch + 1} epochs: "
                 f"LAS: {train_scores['LAS']:.2f} | "
@@ -96,7 +96,7 @@ class ParseRidge(LoggerMixin):
             # Evaluate on dev corpus
             if dev_corpus:
                 dev_scores = CoNNLEvaluator().get_las_score_for_sentences(
-                    *self.predict(dev_corpus))
+                    *self.predict(dev_corpus, batch_size=pred_batch_size))
 
                 self.logger.info(
                     f"Performance on the dev set after {epoch + 1} epochs: "
@@ -398,8 +398,15 @@ class ParseRidge(LoggerMixin):
             predicted_sentences_batch=[c.predicted_sentence for c in configurations],
             stack_index_batch=[c.stack for c in configurations],
             buffer_index_batch=[c.buffer for c in configurations],
-            use_legacy=True
+            use_legacy=False,
+            # prev_decoder_hidden_state_batch=[c.decoder_hidden_state for c in
+            #                                  configurations],
+            # prev_decoder_cell_state_batch=[c.decoder_cell_state for c in configurations]
         )
+
+        # decoder_hidden_state_batch, decoder_cell_state_batch = decoder_hidden
+        # decoder_hidden_state_batch = decoder_hidden_state_batch.transpose(0, 1)
+        # decoder_cell_state_batch = decoder_cell_state_batch.transpose(0, 1)
 
         # Isolate the columns for the transitions
         left_arc = clf_transitions[:, T.LEFT_ARC.value].view(-1, 1)

@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 
+from parseridge.parser.modules.data_parallel import Module
 
-class Decoder(nn.Module):
+
+class Decoder(Module):
     def __init__(self, input_size, output_size, device="cpu"):
         super(Decoder, self).__init__()
         self.device = device
