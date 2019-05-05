@@ -69,13 +69,15 @@ class ParseridgeModel(Module):
         action encoder. """
         self.stack_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
-            lstm_size=2 * self.input_encoder.output_size,
+            lstm_size=False,
+            positional_embedding_size=128,
             device=device
         )
 
         self.buffer_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
-            lstm_size=2 * self.input_encoder.output_size,
+            lstm_size=False,
+            positional_embedding_size=128,
             device=device
         )
 
