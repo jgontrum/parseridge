@@ -36,14 +36,21 @@ def initialize_xavier_dynet_(model, gain=1.0):
         See the paper. Should be 1.0 for Hyperbolic Tangent
 
     """
-    for name, param in model.named_parameters():
-        if 'bias' in name:
-            nn.init.constant_(param, 0.0)
-        elif 'weight' in name:
-            dim_len = len(param.size())
-            dims = sum(param.size())
-            scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
-            torch.nn.init.uniform_(param, -scale, scale)
+    if isinstance(model, torch.nn.Parameter):
+        dim_len = len(model.size())
+        dims = sum(model.size())
+        scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
+        torch.nn.init.uniform_(model, -scale, scale)
+
+    else:
+        for name, param in model.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0.0)
+            elif 'weight' in name:
+                dim_len = len(param.size())
+                dims = sum(param.size())
+                scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
+                torch.nn.init.uniform_(param, -scale, scale)
 
 
 def freeze(module):
@@ -77,3 +84,22 @@ def create_mask(lengths, max_len=None, device="cpu"):
 
     # Create a ByteTensor on the given device and return it.
     return torch.tensor(mask, device=device, dtype=torch.uint8)
+
+
+def lookup_tensors_for_indices(indices_batch, sequence_batch, padding, size):
+    size = max(1, size)
+    batch = []
+    for index_list, lstm_out in zip(indices_batch, sequence_batch):
+        items = [lstm_out[i] for i in index_list]
+        while len(items) < size:
+            items.append(padding)
+
+        # Turn list of tensors into one tensor
+        items = torch.stack(items)
+
+        # Flatten the tensor
+        # items = items.view((-1,)).contiguous()
+
+        batch.append(items)
+
+    return torch.stack(batch).contiguous()

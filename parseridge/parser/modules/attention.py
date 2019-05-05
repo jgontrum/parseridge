@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.utils import initialize_xavier_dynet_
 
 
 class Attention(Module):
@@ -9,6 +10,7 @@ class Attention(Module):
         super(Attention, self).__init__(**kwargs)
 
         self.input_size = input_size
+        self.output_size = input_size
 
         self.word_weight = nn.Sequential(
             nn.Linear(
@@ -22,6 +24,8 @@ class Attention(Module):
             in_features=input_size,
             out_features=1
         )
+
+        initialize_xavier_dynet_(self)
 
     def forward(self, input: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         word_representations = self.word_weight(input)
