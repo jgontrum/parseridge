@@ -9,19 +9,24 @@ from parseridge.parser.modules.data_parallel import Module
 
 class InputEncoder(Module):
     def __init__(self, token_vocabulary, token_embedding_size,
-                 hidden_size, layers=2, dropout=0.33, device="cpu"):
-        super(InputEncoder, self).__init__()
+                 hidden_size, layers=2, dropout=0.33, max_sentence_length=100,
+                 position_embedding_size=128, **kwargs):
+        super(InputEncoder, self).__init__(**kwargs)
 
         self.token_vocabulary = token_vocabulary
         self.input_size = token_embedding_size
         self.hidden_size = hidden_size
         self.output_size = hidden_size
-        self.device = device
 
         self.token_embeddings = nn.Embedding(
             num_embeddings=len(self.token_vocabulary),
             embedding_dim=token_embedding_size,
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
+        )
+
+        self.position_embeddings = nn.Embedding(
+            num_embeddings=max_sentence_length,
+            embedding_dim=position_embedding_size
         )
 
         # TODO Add other feature embeddings here
