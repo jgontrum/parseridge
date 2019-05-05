@@ -61,8 +61,7 @@ class SequenceAttention(Module):
         if self.lstm_size:
             batch = self.rnn(
                 input=batch,
-                sequences=indices_batch,
-                ignore_empty_sequences=False
+                sequences=indices_batch
             )
 
         batch_attn = self.attention_layer(

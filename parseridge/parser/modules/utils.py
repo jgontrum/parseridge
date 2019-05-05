@@ -36,21 +36,22 @@ def initialize_xavier_dynet_(model, gain=1.0):
         See the paper. Should be 1.0 for Hyperbolic Tangent
 
     """
-    if isinstance(model, torch.nn.Parameter):
-        dim_len = len(model.size())
-        dims = sum(model.size())
+
+    def set_weights(param):
+        dim_len = len(param.size())
+        dims = sum(param.size())
         scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
-        torch.nn.init.uniform_(model, -scale, scale)
+        torch.nn.init.uniform_(param, -scale, scale)
+
+    if isinstance(model, torch.nn.Parameter):
+        set_weights(model)
 
     else:
         for name, param in model.named_parameters():
             if 'bias' in name:
                 nn.init.constant_(param, 0.0)
             elif 'weight' in name:
-                dim_len = len(param.size())
-                dims = sum(param.size())
-                scale = gain * math.sqrt(3 * dim_len) / math.sqrt(dims)
-                torch.nn.init.uniform_(param, -scale, scale)
+                set_weights(param)
 
 
 def freeze(module):
