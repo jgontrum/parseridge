@@ -21,18 +21,19 @@ class SequenceAttention(Module):
             torch.zeros(self.input_size, dtype=torch.float)
         )
 
-        self.rnn = RNN(
-            rnn=nn.LSTM(
-                input_size=input_size,
-                hidden_size=lstm_size,
-                bidirectional=True,
-                batch_first=True
-            ),
-            device=self.device
-        )
+        if self.lstm_size:
+            self.rnn = RNN(
+                rnn=nn.LSTM(
+                    input_size=self.input_size,
+                    hidden_size=self.lstm_size,
+                    bidirectional=True,
+                    batch_first=True
+                ),
+                device=self.device
+            )
 
         self.attention_layer = Attention(
-            input_size=lstm_size * 2,
+            input_size=self.lstm_size * 2 if self.lstm_size else self.input_size,
             device=self.device
         )
 
@@ -57,11 +58,12 @@ class SequenceAttention(Module):
             device=self.device
         )
 
-        batch = self.rnn(
-            input=batch,
-            sequences=indices_batch,
-            ignore_empty_sequences=False
-        )
+        if self.lstm_size:
+            batch = self.rnn(
+                input=batch,
+                sequences=indices_batch,
+                ignore_empty_sequences=False
+            )
 
         batch_attn = self.attention_layer(
             batch, mask=batch_mask
