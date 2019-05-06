@@ -43,7 +43,7 @@ class SequenceAttention(Module):
                 device=self.device
             )
 
-            attention_input_size += self.positional_embeddings.output_size
+            attention_input_size += self.positional_embedding_size
 
         self.attention_layer = Attention(
             input_size=attention_input_size,

@@ -62,6 +62,7 @@ class ParseridgeModel(Module):
             hidden_size=lstm_hidden_size,
             layers=lstm_layers,
             dropout=lstm_dropout,
+            positional_embedding_size=False,
             device=device
         )
 
@@ -70,14 +71,14 @@ class ParseridgeModel(Module):
         self.stack_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
             lstm_size=False,
-            positional_embedding_size=128,
+            positional_embedding_size=256,
             device=device
         )
 
         self.buffer_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
             lstm_size=False,
-            positional_embedding_size=128,
+            positional_embedding_size=256,
             device=device
         )
 

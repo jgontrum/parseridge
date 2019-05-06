@@ -5,18 +5,21 @@ from pymagnitude import Magnitude
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.positional_embeddings import PositionalEmbeddings
 
 
 class InputEncoder(Module):
     def __init__(self, token_vocabulary, token_embedding_size,
                  hidden_size, layers=2, dropout=0.33, max_sentence_length=100,
-                 position_embedding_size=128, **kwargs):
+                 positional_embedding_size=128, **kwargs):
         super(InputEncoder, self).__init__(**kwargs)
 
         self.token_vocabulary = token_vocabulary
         self.input_size = token_embedding_size
         self.hidden_size = hidden_size
         self.output_size = hidden_size
+        self.positional_embedding_size = positional_embedding_size
+        self.max_sentence_length = max_sentence_length
 
         self.token_embeddings = nn.Embedding(
             num_embeddings=len(self.token_vocabulary),
@@ -24,10 +27,14 @@ class InputEncoder(Module):
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
         )
 
-        self.position_embeddings = nn.Embedding(
-            num_embeddings=max_sentence_length,
-            embedding_dim=position_embedding_size
-        )
+        if self.positional_embedding_size:
+            self.position_embeddings = PositionalEmbeddings(
+                embedding_size=self.positional_embedding_size,
+                max_length=self.max_sentence_length,
+                device=self.device
+            )
+
+            self.output_size += self.positional_embedding_size
 
         # TODO Add other feature embeddings here
         self.rnn = nn.LSTM(
@@ -84,5 +91,9 @@ class InputEncoder(Module):
                 outputs[:, :, :self.hidden_size] +
                 outputs[:, :, self.hidden_size:]
         )  # Sum bidirectional outputs
+
+        if self.positional_embedding_size:
+            positional_embeddings = self.position_embeddings(sentence_lengths)
+            outputs = torch.cat((outputs, positional_embeddings), dim=2)
 
         return outputs, hidden
