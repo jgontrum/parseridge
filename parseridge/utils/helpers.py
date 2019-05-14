@@ -74,6 +74,8 @@ class Action:
     def get_negative_action(cls):
         return cls(None, None, None, np.NINF)
 
+    def get_relation_object(self):
+        return Relation(self.transition, self.relation)
 
 def get_device():
     return torch.device(

@@ -13,18 +13,25 @@ class Relations(LoggerMixin):
                     relations.add(token.relation)
 
         relations = list(sorted(relations))
+        self.label_signature = Signature(warn_on_oov=True)
+        self.signature = Signature(warn_on_oov=True)
 
         self.labels = [
             Relation(T.SHIFT, None),
             Relation(T.SWAP, None),
         ]
 
-        self.signature = Signature(warn_on_oov=True)
+        self.label_signature.add(Relation(T.SHIFT, None))
+        self.label_signature.add(Relation(T.SWAP, None))
 
         for relation in relations:
             self.signature.add(relation)
+
             self.labels.append(Relation(T.LEFT_ARC, relation))
+            self.label_signature.add(Relation(T.LEFT_ARC, relation))
+
             self.labels.append(Relation(T.RIGHT_ARC, relation))
+            self.label_signature.add(Relation(T.RIGHT_ARC, relation))
 
         self.slices = {
             T.SHIFT: slice(0, 1),

@@ -2,6 +2,7 @@ import random
 from copy import deepcopy
 
 import conllu
+from tqdm import tqdm
 
 from parseridge.corpus.token import Token
 from parseridge.parser.configuration import Configuration

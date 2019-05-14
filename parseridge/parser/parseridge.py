@@ -4,6 +4,7 @@ from typing import NamedTuple
 
 import numpy as np
 import torch
+from torch import nn
 from tqdm import tqdm
 
 from parseridge.corpus.corpus import CorpusIterator
@@ -178,8 +179,6 @@ class ParseRidge(LoggerMixin):
 
                 pbar.update(len(batch[1]))
 
-        # In case there are some margin losses left, compute their gradients.
-        _, epoch_metric = self.trainer.learn(loss, epoch_metric)
         self.model.after_epoch()
         return epoch_metric
 
@@ -233,6 +232,12 @@ class ParseRidge(LoggerMixin):
             zip(contextualized_tokens_batch, sentences)
         ]
 
+        gold_transitions_batch = []
+        gold_relations_batch = []
+
+        transition_logits_batch = []
+        relation_logits_batch = []
+
         # Main loop for the sentences in this batch
         while configurations:
             # Remove all finished configurations
@@ -241,7 +246,12 @@ class ParseRidge(LoggerMixin):
                 break
 
             # Pass the stacks and buffers through the MLPs in one batch
-            configurations = self._update_classification_scores(configurations)
+            configurations, transition_logits, relation_logits = \
+                self._update_classification_scores(configurations)
+
+            transition_logits_batch.append(transition_logits)
+            relation_logits_batch.append(relation_logits)
+
             # The actual computation of the loss must be done sequentially
             for configuration in configurations:
                 # Predict a list of possible actions: Transitions, their
@@ -259,7 +269,7 @@ class ParseRidge(LoggerMixin):
                 # possible, but would introduce an error compared to the
                 # gold tree. To keep the model robust, we sometimes
                 # decided, however, to use it instead of the valid one.
-                best_action, best_valid_action, best_wrong_action = \
+                best_action, best_valid_action, best_wrong_action, valid_actions = \
                     configuration.select_actions(
                         actions, costs, error_probability, margin_threshold)
 
@@ -271,22 +281,37 @@ class ParseRidge(LoggerMixin):
                 # Apply the best action and update the stack and buffer
                 configuration.apply_transition(best_action)
 
-                # Compute the loss by using the margin between the scores
-                if (best_wrong_action.transition is not None
-                        and best_valid_action.np_score <
-                        best_wrong_action.np_score + margin_threshold):
-                    margin = best_wrong_action.score - best_valid_action.score
-                    batch_metric.num_updates += 1
-                    loss.append(margin)
+                gold_transitions, gold_relations = \
+                    configuration.get_gold_labels(best_valid_action)
+
+                gold_transitions_batch.append(gold_transitions)
+                gold_relations_batch.append(gold_relations)
 
                 if best_action.transition in [T.LEFT_ARC, T.RIGHT_ARC]:
                     batch_metric.num_transitions += 1
                 if best_action != best_valid_action:
                     batch_metric.num_errors += 1
 
-        # Perform back propagation
-        loss, batch_metric = self.trainer.learn(loss, batch_metric)
-        self.model.after_batch()
+        # Compute loss
+        gold_transitions_batch = torch.stack(gold_transitions_batch)
+        gold_relations_batch = torch.stack(gold_relations_batch)
+
+        transition_logits_batch = torch.cat(transition_logits_batch)
+        relation_logits_batch = torch.cat(relation_logits_batch)
+
+        criterion = nn.CrossEntropyLoss()
+        loss_transition = criterion(transition_logits_batch, gold_transitions_batch)
+        loss_relation = criterion(relation_logits_batch, gold_relations_batch)
+
+        loss = loss_transition + loss_relation
+
+        loss.backward()
+        self.trainer.optimizer.step()
+        self.trainer.optimizer.zero_grad()
+
+        batch_metric.loss += loss.item()
+        batch_metric.num_backprop += 1
+
         return loss, batch_metric
 
     def predict(self, corpus, batch_size=512, remove_pbar=True):
@@ -328,7 +353,7 @@ class ParseRidge(LoggerMixin):
 
         while configurations:
             # Pass the stacks and buffers through the MLPs in one batch
-            configurations = self._update_classification_scores(
+            configurations, _, _  = self._update_classification_scores(
                 configurations)
 
             # The actual computation of the loss must be done sequentially
@@ -391,7 +416,7 @@ class ParseRidge(LoggerMixin):
         # actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
         # actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
 
-        clf_transitions, clf_labels = self.model(
+        clf_transitions, clf_relations = self.model(
             sentence_encoding_batch=[c.contextualized_input for c in configurations],
             action_encoding_batch=None, #actions_encoding_batch,
             sentences=[c.sentence for c in configurations],
@@ -414,18 +439,18 @@ class ParseRidge(LoggerMixin):
         shift = clf_transitions[:, T.SHIFT.value].view(-1, 1)
         swap = clf_transitions[:, T.SWAP.value].view(-1, 1)
 
-        # Isolate the columns for the different labels
+        # Isolate the columns for the different relations
         relation_slices = self.model.relations.slices
-        shift_labels = clf_labels[:, relation_slices[T.SHIFT]]
-        swap_labels = clf_labels[:, relation_slices[T.SWAP]]
-        left_arc_labels = clf_labels[:, relation_slices[T.LEFT_ARC]]
-        right_arc_labels = clf_labels[:, relation_slices[T.RIGHT_ARC]]
+        shift_relations = clf_relations[:, relation_slices[T.SHIFT]]
+        swap_relations = clf_relations[:, relation_slices[T.SWAP]]
+        left_arc_relations = clf_relations[:, relation_slices[T.LEFT_ARC]]
+        right_arc_relations = clf_relations[:, relation_slices[T.RIGHT_ARC]]
 
         # Add them in one batch
-        shift_score_batch = torch.add(shift, shift_labels)
-        swap_score_batch = torch.add(swap, swap_labels)
-        left_arc_scores_batch = torch.add(left_arc, left_arc_labels)
-        right_arc_scores_batch = torch.add(right_arc, right_arc_labels)
+        shift_score_batch = torch.add(shift, shift_relations)
+        swap_score_batch = torch.add(swap, swap_relations)
+        left_arc_scores_batch = torch.add(left_arc, left_arc_relations)
+        right_arc_scores_batch = torch.add(right_arc, right_arc_relations)
 
         # For the left and right arc scores, we're only interested in the
         # two best entries, so we extract then in one go.
@@ -492,4 +517,4 @@ class ParseRidge(LoggerMixin):
         for combination in combinations:
             Combination(*combination).apply()
 
-        return configurations
+        return configurations, clf_transitions, clf_relations

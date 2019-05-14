@@ -66,9 +66,9 @@ class TestParseProjective:
             []
         ]
 
-        output = ParseridgeModel._get_tensor_for_indices(
+        output = ParseridgeModel.lookup_tensors_for_indices(
             indices_batch=stacks,
-            lstm_out_batch=sentence_batch,
+            sequence_batch=sentence_batch,
             padding=padding,
             size=size
         )
@@ -121,9 +121,9 @@ class TestParseProjective:
             []
         ]
 
-        stack_batch = ParseridgeModel._get_tensor_for_indices(
+        stack_batch = ParseridgeModel.lookup_tensors_for_indices(
             indices_batch=stacks,
-            lstm_out_batch=sentence_batch,
+            sequence_batch=sentence_batch,
             padding=padding,
             size=stack_size
         )
@@ -134,9 +134,9 @@ class TestParseProjective:
             []
         ]
 
-        buffer_batch = ParseridgeModel._get_tensor_for_indices(
+        buffer_batch = ParseridgeModel.lookup_tensors_for_indices(
             indices_batch=buffers,
-            lstm_out_batch=sentence_batch,
+            sequence_batch=sentence_batch,
             padding=padding,
             size=buffer_size
         )

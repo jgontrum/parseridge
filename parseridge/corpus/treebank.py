@@ -1,3 +1,5 @@
+from tqdm import tqdm
+
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.sentence import Sentence

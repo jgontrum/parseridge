@@ -1,6 +1,8 @@
 from itertools import chain
 from random import random
 
+import torch
+
 from parseridge.utils.helpers import Action, T, Transition
 from parseridge.utils.logger import LoggerMixin
 
@@ -67,7 +69,7 @@ class Configuration(LoggerMixin):
     @property
     def swap_conditions(self):
         return len(self.stack) > 0 and \
-                          self.top_stack_token.id < self.top_buffer_token.id
+               self.top_stack_token.id < self.top_buffer_token.id
 
     def predict_actions(self):
         """
@@ -249,7 +251,7 @@ class Configuration(LoggerMixin):
             not_in_projected_order = [
                 token for token in rest_buffer_tokens
                 if token.projective_order < self.top_buffer_token.projective_order
-                and token.id > self.top_buffer_token.id
+                   and token.id > self.top_buffer_token.id
             ]
 
             if not_in_projected_order:
@@ -288,6 +290,14 @@ class Configuration(LoggerMixin):
                 costs[T.SWAP] = 0
 
         return costs, shift_case
+
+    def get_gold_labels(self, action):
+        relation_id = self.model.relations.label_signature.get_id(
+            action.get_relation_object()
+        )
+
+        return (torch.tensor(action.transition.value, dtype=torch.int64, device=self.model.device),
+                torch.tensor(relation_id, dtype=torch.int64, device=self.model.device))
 
     def select_actions(self, actions, costs, error_probability=0.1, margin_threshold=2.5):
         """
@@ -378,7 +388,7 @@ class Configuration(LoggerMixin):
         ):
             best_action = best_wrong_action
 
-        return best_action, best_valid_action, best_wrong_action
+        return best_action, best_valid_action, best_wrong_action, valid_actions
 
     def update_dynamic_oracle(self, action, shift_case):
         """
