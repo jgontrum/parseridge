@@ -5,21 +5,26 @@ from pymagnitude import Magnitude
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.positional_embeddings import PositionalEmbeddings
 
 
 class InputEncoder(Module):
     def __init__(self, token_vocabulary, token_embedding_size,
                  hidden_size, layers=2, dropout=0.33, max_sentence_length=100,
-                 positional_embedding_size=128, **kwargs):
+                 positional_embedding_size=128, sum_directions=True,
+                 reduce_dimensionality=False, **kwargs):
         super(InputEncoder, self).__init__(**kwargs)
 
         self.token_vocabulary = token_vocabulary
         self.input_size = token_embedding_size
         self.hidden_size = hidden_size
-        self.output_size = hidden_size
         self.positional_embedding_size = positional_embedding_size
         self.max_sentence_length = max_sentence_length
+        self.sum_directions = sum_directions
+        self.reduce_dimensionality = reduce_dimensionality
+
+        self.output_size = hidden_size if self.sum_directions else 2 * hidden_size
 
         self.token_embeddings = nn.Embedding(
             num_embeddings=len(self.token_vocabulary),
@@ -45,6 +50,17 @@ class InputEncoder(Module):
             bidirectional=True,
             batch_first=True
         )
+
+        if self.reduce_dimensionality:
+            self.mlp = MultilayerPerceptron(
+                input_size=self.output_size,
+                output_size=128,
+                hidden_sizes=[256],
+                dropout=0.33,
+                activation=nn.Tanh
+            )
+
+            self.output_size = self.mlp.output_size
 
     def load_external_embeddings(self):
         vectors = Magnitude(
@@ -87,10 +103,14 @@ class InputEncoder(Module):
             batch_first=True
         )
 
-        outputs = (
-                outputs[:, :, :self.hidden_size] +
-                outputs[:, :, self.hidden_size:]
-        )  # Sum bidirectional outputs
+        if self.sum_directions:
+            outputs = (
+                    outputs[:, :, :self.hidden_size] +
+                    outputs[:, :, self.hidden_size:]
+            )  # Sum bidirectional outputs
+
+        if self.reduce_dimensionality:
+            outputs = self.mlp(outputs)
 
         if self.positional_embedding_size:
             positional_embeddings = self.position_embeddings(sentence_lengths)

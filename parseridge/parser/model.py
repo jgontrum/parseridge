@@ -63,6 +63,8 @@ class ParseridgeModel(Module):
             layers=lstm_layers,
             dropout=lstm_dropout,
             positional_embedding_size=False,
+            sum_directions=False,
+            reduce_dimensionality=True,
             device=device
         )
 
