@@ -262,7 +262,6 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         )
         batch = [batch[i] for i in order]
 
-
         ret = []
         num_features = len(batch[0])
         for idx in range(0, num_features, 2):
@@ -272,8 +271,9 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
                 # Don't pad scalars
                 features = torch.stack([item[idx] for item in batch])
             else:
+                max_length = max(lengths)
                 features = torch.stack([
-                    pad_tensor(item[idx], max(lengths), padding=1) for item in batch
+                    pad_tensor(item[idx], max_length, padding=0) for item in batch
                 ])
 
             ret.append(features)
