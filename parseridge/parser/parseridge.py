@@ -22,7 +22,7 @@ from parseridge.utils.logger import LoggerMixin
 from parseridge.utils.report import get_reporter
 
 
-class ParseRidge(LoggerMixin):
+class Parseridge(LoggerMixin):
     """
     The core engine of the parser. Here, the training and prediction parts
     are implemented.

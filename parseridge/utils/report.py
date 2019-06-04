@@ -112,9 +112,6 @@ class GoogleSheetsReporter(BaseReporter):
         self.template_engine.sync()
 
     def report_loss(self, loss_value: float, epoch: int):
-        if not self.active:
-            return
-
         self.template_engine.worksheet.add_rows(1)
         self.template_engine.update_variables(
             loss_epoch=epoch,
@@ -125,9 +122,6 @@ class GoogleSheetsReporter(BaseReporter):
 
     def report_epoch(self, epoch: int, epoch_loss: float, train_las: float,
                      train_uas: float, dev_las: float, dev_uas: float):
-        if not self.active:
-            return
-
         self.template_engine.worksheet.add_rows(1)
 
         if dev_las > self.best_result["value"]:
@@ -152,9 +146,6 @@ class GoogleSheetsReporter(BaseReporter):
         self.template_engine.sync()
 
     def finish(self, error=False):
-        if not self.active:
-            return
-
         self.template_engine.update_variables(
             status="Finished" if not error else "Error",
             duration=self.duration

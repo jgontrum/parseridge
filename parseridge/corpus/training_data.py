@@ -222,6 +222,10 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         return len(self.data_points)
 
     def get_length_tensor(self, tensor):
+        if not len(tensor.shape):
+            # Handling scalars
+            return torch.tensor(1, device=self.device)
+
         return torch.tensor(tensor.shape[0], device=self.device)
 
     def __getitem__(self, index):
@@ -231,7 +235,8 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
             item.sentence, self.get_length_tensor(item.sentence),
             item.stack, self.get_length_tensor(item.stack),
             item.buffer, self.get_length_tensor(item.buffer),
-            item.gold_transition, item.gold_relation
+            item.gold_transition, self.get_length_tensor(item.gold_transition),
+            item.gold_relation, self.get_length_tensor(item.gold_relation)
         )
 
     @staticmethod
@@ -248,7 +253,7 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         -------
         List of Tensor
         """
-        # Sort batch by sentence length
+        # Sort batch according to sentence length
         sentence_lengths = [item[1] for item in batch]
         order = sorted(
             range(len(sentence_lengths)),
@@ -257,40 +262,24 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         )
         batch = [batch[i] for i in order]
 
-        # Pad the fields in the batch
-        max_sentence_length = max([item[1] for item in batch])
-        max_stack_length = max([item[3] for item in batch])
-        max_buffer_length = max([item[5] for item in batch])
 
-        # Merge the fields into tensors
-        padded_sentences_field = torch.stack([
-            pad_tensor(item[0], max_sentence_length, padding=1) for item in batch
-        ])
+        ret = []
+        num_features = len(batch[0])
+        for idx in range(0, num_features, 2):
+            lengths = [item[idx + 1] for item in batch]
 
-        sentence_lengths_field = torch.stack([item[1] for item in batch])
+            if not len(batch[0][idx].shape):
+                # Don't pad scalars
+                features = torch.stack([item[idx] for item in batch])
+            else:
+                features = torch.stack([
+                    pad_tensor(item[idx], max(lengths), padding=1) for item in batch
+                ])
 
-        padded_stack_field = torch.stack([
-            pad_tensor(item[2], max_stack_length, padding=0) for item in batch
-        ])
+            ret.append(features)
+            ret.append(torch.stack(lengths))
 
-        stack_lengths_field = torch.stack([item[3] for item in batch])
-
-        padded_buffer_field = torch.stack([
-            pad_tensor(item[4], max_buffer_length, padding=0) for item in batch
-        ])
-
-        buffer_lengths_field = torch.stack([item[5] for item in batch])
-
-        gold_transition_field = torch.stack([item[6] for item in batch])
-
-        gold_relation_field = torch.stack([item[7] for item in batch])
-
-        return [
-            padded_sentences_field, sentence_lengths_field,
-            padded_stack_field, stack_lengths_field,
-            padded_buffer_field, buffer_lengths_field,
-            gold_transition_field, gold_relation_field
-        ]
+        return ret
 
     class TrainingBatch(NamedTuple):
         sentences: torch.Tensor
@@ -300,4 +289,6 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         buffers: torch.Tensor
         buffer_lengths: torch.Tensor
         gold_transitions: torch.Tensor
+        gold_transitions_lengths: torch.Tensor
         gold_relations: torch.Tensor
+        gold_relations_lengths: torch.Tensor

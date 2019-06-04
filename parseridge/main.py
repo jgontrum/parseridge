@@ -8,7 +8,7 @@ from parseridge.corpus.training_data import ConLLDataset
 from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
-from parseridge.parser.parseridge import ParseRidge
+from parseridge.parser.parseridge import Parseridge
 from parseridge.utils.cli_parser import parse_cli_arguments
 from parseridge.utils.helpers import set_seed
 from parseridge.utils.logger import LoggerMixin
@@ -40,7 +40,7 @@ def start():
         dev_sentences = list(Sentence.from_conllu(dev_as_string))
 
         # Start training
-        parser = ParseRidge(options.device)
+        parser = Parseridge(options.device)
         parser.fit(
             train_sentences=train_sentences,
             dev_sentences=dev_sentences,

@@ -25,8 +25,6 @@ class Vocabulary(Signature):
     def add(self, word):
         word = self._normalize(word)
 
-        if word == "clinics":
-            print("foundit")
         if self.embeddings_vocab and word not in self.embeddings_vocab:
             # Set this as OOV, as it is not present in the embeddings.
             return self.oov

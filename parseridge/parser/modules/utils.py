@@ -2,6 +2,7 @@ import math
 
 import torch
 from torch import nn
+from torch.nn.functional import pad
 
 
 def init_weights_xavier_(network, activation="tanh"):
@@ -79,9 +80,7 @@ def pad_tensor(tensor, length, padding=0):
     assert length >= tensor_length, "Tensor too long to pad."
     assert len(tensor.shape) == 1, "Tensor must be one-dimensional."
 
-    padding = torch.zeros(length - tensor_length, device=tensor.device,
-                          dtype=tensor.dtype).fill_(padding)
-    return torch.cat((tensor, padding), dim=0)
+    return pad(tensor, [0, length - tensor_length], value=padding)
 
 
 def pad_tensor_list(tensors, padding=0):
