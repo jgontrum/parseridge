@@ -9,7 +9,8 @@ from parseridge.utils.logger import LoggerMixin
 
 class Configuration(LoggerMixin):
 
-    def __init__(self, sentence, contextualized_input, model):
+    def __init__(self, sentence, contextualized_input, model, predict=True, device=None,
+                 sentence_features=None):
         """
         The Configuration class is used to store the information about a
         parser configuration like stack, buffer, predictions etc.
@@ -29,9 +30,11 @@ class Configuration(LoggerMixin):
             The PyTorch model that is parsing this sentence.
         """
         self.model = model
+        self.device = device if device else model.device if model else "cpu"
         self.sentence = sentence
-        self.predicted_sentence = sentence.get_empty_copy()
+        self.predicted_sentence = sentence.get_empty_copy() if predict else None
         self.contextualized_input = contextualized_input
+        self.sentence_features = sentence_features
         self.scores = {}
         self.stack = []
         self.buffer = [token.id for token in sentence][1:] + \
@@ -291,15 +294,39 @@ class Configuration(LoggerMixin):
 
         return costs, shift_case
 
-    def get_gold_labels(self, action):
-        relation_id = self.model.relations.label_signature.get_id(
-            action.get_relation_object()
-        )
+    def get_valid_actions(self, actions, costs):
+        valid_actions = []
+        for action in actions:
+            # Only take transitions with a cost of 0 into account
+            if costs[action.transition] > 0:
+                continue
 
-        return (torch.tensor(action.transition.value, dtype=torch.int64, device=self.model.device),
-                torch.tensor(relation_id, dtype=torch.int64, device=self.model.device))
+            if action.transition in [T.SHIFT, T.SWAP]:
+                # If the transition is SHIFT or SWAP,
+                # we don't have to check a relation and can
+                # accept them right away
+                valid_actions.append(action)
 
-    def select_actions(self, actions, costs, error_probability=0.1, margin_threshold=2.5):
+            elif self.stack and action.relation == self.top_stack_token.relation:
+                # Otherwise, the relation must match the gold
+                # relation for the first item on the stack.
+                valid_actions.append(action)
+
+        return valid_actions
+
+    def get_wrong_actions(self, actions, costs):
+        wrong_actions = []
+        for action in actions:
+            if costs[action.transition] != 0 or (
+                    action.transition != T.SHIFT and
+                    action.transition != T.SWAP and
+                    action.relation != self.top_stack_token.relation
+            ):
+                wrong_actions.append(action)
+
+        return wrong_actions
+
+    def select_actions(self, actions, costs, error_probability=0.0, margin_threshold=2.5):
         """
         Given the predicted actions and the costs for the transitions,
         find the best action and the best wrong action. Both are needed
@@ -331,35 +358,10 @@ class Configuration(LoggerMixin):
         # gold dependency tree and would lead to errors.
         # Get the best valid transition
 
-        valid_actions = []
-        for action in actions:
-            # Only take transitions with a cost of 0 into account
-            if costs[action.transition] > 0:
-                continue
-
-            if action.transition in [T.SHIFT, T.SWAP]:
-                # If the transition is SHIFT or SWAP,
-                # we don't have to check a relation and can
-                # accept them right away
-                valid_actions.append(action)
-
-            elif self.stack and action.relation == self.top_stack_token.relation:
-                # Otherwise, the relation must match the gold
-                # relation for the first item on the stack.
-                valid_actions.append(action)
-
+        valid_actions = self.get_valid_actions(actions, costs)
         best_valid_action = self.get_best_action(valid_actions)
 
-        # wrong_actions = list(set(actions).difference(set(valid_actions)))
-        wrong_actions = []
-        for action in actions:
-            if costs[action.transition] != 0 or (
-                    action.transition != T.SHIFT and
-                    action.transition != T.SWAP and
-                    action.relation != self.top_stack_token.relation
-            ):
-                wrong_actions.append(action)
-
+        wrong_actions = self.get_wrong_actions(actions, costs)
         if wrong_actions:
             best_wrong_action = self.get_best_action(wrong_actions)
         else:
@@ -388,7 +390,7 @@ class Configuration(LoggerMixin):
         ):
             best_action = best_wrong_action
 
-        return best_action, best_valid_action, best_wrong_action, valid_actions
+        return best_action, best_valid_action, best_wrong_action
 
     def update_dynamic_oracle(self, action, shift_case):
         """
@@ -462,7 +464,7 @@ class Configuration(LoggerMixin):
             dependent = self.stack.pop()
             parent = self.stack[-1]
 
-        if action.transition in [T.LEFT_ARC, T.RIGHT_ARC]:
+        if action.transition in [T.LEFT_ARC, T.RIGHT_ARC] and self.predicted_sentence:
             # Make an attachment in the tree
             self.predicted_sentence[dependent].head = parent
             self.predicted_sentence[dependent].relation = action.relation
@@ -514,3 +516,16 @@ class Configuration(LoggerMixin):
     def processed_tokens(self):
         return set([token.id for token in self.sentence]) \
                - set(chain(self.buffer, self.stack))
+
+    @property
+    def stack_tensor(self):
+        return torch.tensor(self.stack, dtype=torch.int64, device=self.device)
+
+    @property
+    def buffer_tensor(self):
+        return torch.tensor(self.buffer, dtype=torch.int64, device=self.device)
+
+    @property
+    def actions_tensor(self):
+        actions = [action.transition.value for action in self.actions_history]
+        return torch.tensor(actions, dtype=torch.int64, device=self.device)

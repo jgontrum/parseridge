@@ -73,7 +73,30 @@ def add_padding(sequence, length, padding_item):
     return sequence
 
 
+def pad_tensor(tensor, length, padding=0):
+    tensor_length = tensor.shape[0]
+
+    assert length >= tensor_length, "Tensor too long to pad."
+    assert len(tensor.shape) == 1, "Tensor must be one-dimensional."
+
+    padding = torch.zeros(length - tensor_length, device=tensor.device,
+                          dtype=tensor.dtype).fill_(padding)
+    return torch.cat((tensor, padding), dim=0)
+
+
+def pad_tensor_list(tensors, padding=0):
+    max_length = max([len(tensor) for tensor in tensors])
+    padded_tensors = [
+        pad_tensor(tensor, length=max_length, padding=padding) for tensor in tensors
+    ]
+
+    return torch.stack(padded_tensors)
+
+
 def create_mask(lengths, max_len=None, device="cpu"):
+    if isinstance(lengths, torch.Tensor):
+        lengths = lengths.cpu().tolist()
+
     if not max_len:
         max_len = max(lengths)
 
@@ -87,20 +110,10 @@ def create_mask(lengths, max_len=None, device="cpu"):
     return torch.tensor(mask, device=device, dtype=torch.uint8)
 
 
-def lookup_tensors_for_indices(indices_batch, sequence_batch, padding, size):
-    size = max(1, size)
+def lookup_tensors_for_indices(indices_batch, sequence_batch):
     batch = []
     for index_list, lstm_out in zip(indices_batch, sequence_batch):
-        items = [lstm_out[i] for i in index_list]
-        while len(items) < size:
-            items.append(padding)
-
-        # Turn list of tensors into one tensor
-        items = torch.stack(items)
-
-        # Flatten the tensor
-        # items = items.view((-1,)).contiguous()
-
+        items = torch.index_select(lstm_out, dim=0, index=index_list)
         batch.append(items)
 
     return torch.stack(batch).contiguous()

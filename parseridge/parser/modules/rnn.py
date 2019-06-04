@@ -16,9 +16,9 @@ class RNN(Module):
         super().__init__(**kwargs)
         self.rnn = rnn
 
-    def forward(self, input: torch.Tensor, sequences: List) -> torch.Tensor:
+    def forward(self, input: torch.Tensor, sequence_lengths: List) -> torch.Tensor:
         seq_lengths = torch.tensor(
-            [max(1, len(sequence)) for sequence in sequences],
+            [max(1, sequence_len) for sequence_len in sequence_lengths],
             device=self.device,
             dtype=torch.long
         )

@@ -1,7 +1,5 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from pymagnitude import Magnitude
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.data_parallel import Module
@@ -62,37 +60,17 @@ class InputEncoder(Module):
 
             self.output_size = self.mlp.output_size
 
-    def load_external_embeddings(self):
-        vectors = Magnitude(
-            "http://magnitude.plasticity.ai/fasttext/medium"
-            "/wiki-news-300d-1M-subword.magnitude")
+    def load_external_embeddings(self, embeddings):
+        self.logger.info("Loading external embeddings into the embedding layer...")
+        self.token_embeddings.weight = embeddings.get_weight_matrix(
+            self.token_vocabulary, self.device)
 
-        token_embedding_weights = np.concatenate((
-            [np.zeros(vectors.dim, dtype=float),
-             np.zeros(vectors.dim, dtype=float)],
-            vectors.query(
-                self.token_vocabulary.get_items()[2:])
-        ))
-
-        token_embedding_weights = torch.from_numpy(token_embedding_weights).float().to(self.device)
-        self.token_embeddings.weight = torch.nn.Parameter(
-            token_embedding_weights, requires_grad=True
-        )
-
-
-    def _get_token_embeddings(self, sentence_features):
-        tokens = sentence_features[:, 0, :]
-        return self.token_embeddings(tokens)
-
-    def forward(self, sentences, sentence_features):
-        sentence_lengths = [len(sentence) for sentence in sentences]
-
-        tokens_embedded = self._get_token_embeddings(sentence_features)
-        # TODO Add other embedding lookups here
+    def forward(self, sentence_batch, sentence_lengths):
+        tokens_embedded = self.token_embeddings(sentence_batch)
 
         input_packed = pack_padded_sequence(
             tokens_embedded,
-            torch.tensor(sentence_lengths, dtype=torch.int64, device=self.device),
+            lengths=sentence_lengths,
             batch_first=True
         )
 

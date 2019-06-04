@@ -1,6 +1,13 @@
 import json
 
+from torch.utils.data import DataLoader
+
+from parseridge.corpus.relations import Relations
+from parseridge.corpus.sentence import Sentence
+from parseridge.corpus.training_data import ConLLDataset
 from parseridge.corpus.treebank import Treebank
+from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.parseridge import ParseRidge
 from parseridge.utils.cli_parser import parse_cli_arguments
 from parseridge.utils.helpers import set_seed
@@ -20,19 +27,23 @@ def start():
                        f"This could have a performance impact when run on CUDA.")
 
     if options.train:
-        # Load data
-        treebank = Treebank(
-            open(options.train_corpus),
-            open(options.test_corpus),
-            device=options.device
-        )
+        if options.embeddings_file:
+            logger.info(f"Loading embeddings from '{options.embeddings_file}'...")
+            embeddings = ExternalEmbeddings(path=options.embeddings_file)
+        else:
+            embeddings = None
+
+        train_as_string = "".join(open(options.train_corpus))
+        train_sentences = list(Sentence.from_conllu(train_as_string))
+
+        dev_as_string = "".join(open(options.test_corpus))
+        dev_sentences = list(Sentence.from_conllu(dev_as_string))
 
         # Start training
         parser = ParseRidge(options.device)
         parser.fit(
-            corpus=treebank.train_corpus,
-            relations=treebank.relations,
-            dev_corpus=treebank.dev_corpus,
+            train_sentences=train_sentences,
+            dev_sentences=dev_sentences,
             num_stack=options.num_stack,
             num_buffer=options.num_buffer,
             embedding_size=options.embedding_size,
@@ -54,7 +65,11 @@ def start():
             learning_rate=options.learning_rate,
             update_size=options.update_size,
             loss_factor=options.loss_factor,
-            loss_strategy=options.loss_strategy
+            loss_strategy=options.loss_strategy,
+            google_sheet_id=options.google_sheet_id,
+            google_sheet_auth_file=options.google_sheet_auth_file,
+            embeddings=embeddings,
+            params=vars(options)
         )
 
 

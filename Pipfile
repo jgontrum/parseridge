@@ -9,12 +9,9 @@ torch = "*"
 torchvision = "*"
 tqdm = "*"
 numpy = "*"
-pymagnitude = "*"
-pandas = "*"
+pygsheets = "*"
 
 [dev-packages]
-sphinx = "*"
-numpydoc = "*"
 pytest = "*"
 pytest-cov = "*"
 

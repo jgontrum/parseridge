@@ -5,15 +5,21 @@ from typing import NamedTuple
 import numpy as np
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from parseridge.corpus.corpus import CorpusIterator
+from parseridge.corpus.corpus import CorpusIterator, Corpus
+from parseridge.corpus.relations import Relations
+from parseridge.corpus.training_data import ConLLDataset
+from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.model import ParseridgeModel
+from parseridge.parser.modules.utils import pad_tensor_list
 from parseridge.parser.trainer import Trainer
 from parseridge.utils.evaluate import CoNNLEvaluator
 from parseridge.utils.helpers import T, Metric
 from parseridge.utils.logger import LoggerMixin
+from parseridge.utils.report import get_reporter
 
 
 class ParseRidge(LoggerMixin):
@@ -28,25 +34,67 @@ class ParseRidge(LoggerMixin):
 
         self.model = None
         self.trainer = None
+        self.reporter = None
+
         self.id_ = str(self.time_prefix())
         self.device = device
 
-    def fit(self, corpus, relations, dev_corpus=None, num_stack=3, num_buffer=1,
+    def fit(self, train_sentences, dev_sentences, num_stack=3, num_buffer=1,
             embedding_size=100, lstm_hidden_size=125, lstm_layers=2,
             relation_mlp_layers=None, transition_mlp_layers=None, margin_threshold=2.5,
             error_probability=0.1, oov_probability=0.25, token_dropout=0.01,
             lstm_dropout=0.33, mlp_dropout=0.25, batch_size=4, pred_batch_size=512,
             num_epochs=3, gradient_clipping=10.0, weight_decay=0.0, learning_rate=0.001,
-            update_size=50, loss_factor=0.75, loss_strategy="avg"):
+            update_size=50, loss_factor=0.75, loss_strategy="avg", google_sheet_id=None,
+            google_sheet_auth_file=None, embeddings=None, params=None):
+
+        # The vocabulary maps tokens to integer ids, while the relations object
+        # manages the relation labels and their position in the MLP output.
+        vocabulary = Vocabulary(embeddings_vocab=embeddings.vocab if embeddings else None)
+        relations = Relations(train_sentences)
+
+        if embeddings:
+            if embedding_size != embeddings.dim:
+                self.logger.warning(
+                    "Overwriting embedding dimensions to match external embeddings.")
+                embedding_size = embeddings.dim
+
+        # Generate the training examples based on the dependency graphs in the train data
+        self.train_dataset = ConLLDataset(
+            train_sentences,
+            vocabulary=vocabulary,
+            relations=relations,
+            oov_probability=oov_probability,
+            error_probability=error_probability,
+            device=self.device
+        )
+
+        self.train_dataloader = DataLoader(
+            self.train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=ConLLDataset.collate_batch
+        )
+
+        # After reading in the training data, make sure that no changes can be made
+        # to the signatures.
+        vocabulary.read_only()
+        relations.signature.read_only()
+
+        # Prepare corpus objects which store information about the whole sentence.
+        # They are used for evaluation, not training.
+        train_corpus = Corpus(train_sentences, vocabulary, device=self.device)
+        dev_corpus = Corpus(dev_sentences, vocabulary, device=self.device)
 
         self.model = ParseridgeModel(
             relations=relations,
-            vocabulary=corpus.vocabulary,
+            vocabulary=vocabulary,
             num_stack=num_stack,
             num_buffer=num_buffer,
             lstm_dropout=lstm_dropout,
             mlp_dropout=mlp_dropout,
             embedding_size=embedding_size,
+            embeddings=embeddings,
             lstm_hidden_size=lstm_hidden_size,
             lstm_layers=lstm_layers,
             transition_mlp_layers=transition_mlp_layers,
@@ -64,38 +112,35 @@ class ParseRidge(LoggerMixin):
             update_size=update_size
         )
 
+        criterion = nn.CrossEntropyLoss()
+
         # torch.autograd.set_detect_anomaly(True)
 
-        for epoch in range(num_epochs):
-            t0 = time()
-            self.logger.info(f"Starting epoch #{epoch + 1}...")
+        with get_reporter(
+                sheets_id=google_sheet_id,
+                auth_file_path=google_sheet_auth_file,
+                hyper_parameters=params
+        ) as self.reporter:
+            for epoch in range(num_epochs):
+                t0 = time()
+                self.logger.info(f"Starting epoch #{epoch + 1}...")
 
-            epoch_metric = self._run_epoch(
-                corpus=corpus,
-                batch_size=batch_size,
-                error_probability=error_probability,
-                margin_threshold=margin_threshold,
-                oov_probability=oov_probability,
-                token_dropout=token_dropout,
-                epoch=epoch
-            )
+                epoch_metric = self._run_epoch(
+                    dataloader=self.train_dataloader,
+                    criterion=criterion,
+                    epoch=epoch + 1
+                )
 
-            self.logger.info(f"Epoch loss: {epoch_metric.loss / len(corpus):.8f}")
-            self.logger.info(f"Updates: {epoch_metric.num_updates}")
-            self.logger.info(f"Back propagations: {epoch_metric.num_backprop}")
-            self.logger.info(f"Induced errors: {epoch_metric.num_errors}")
+                # Evaluate on training corpus
+                train_scores = CoNNLEvaluator().get_las_score_for_sentences(
+                    *self.predict(train_corpus, batch_size=pred_batch_size))
+                self.logger.info(
+                    f"Performance on the training set after {epoch + 1} epochs: "
+                    f"LAS: {train_scores['LAS']:.2f} | "
+                    f"UAS: {train_scores['UAS']:.2f}"
+                )
 
-            # Evaluate on training corpus
-            train_scores = CoNNLEvaluator().get_las_score_for_sentences(
-                *self.predict(corpus, batch_size=pred_batch_size))
-            self.logger.info(
-                f"Performance on the training set after {epoch + 1} epochs: "
-                f"LAS: {train_scores['LAS']:.2f} | "
-                f"UAS: {train_scores['UAS']:.2f}"
-            )
-
-            # Evaluate on dev corpus
-            if dev_corpus:
+                # Evaluate on dev corpus
                 dev_scores = CoNNLEvaluator().get_las_score_for_sentences(
                     *self.predict(dev_corpus, batch_size=pred_batch_size))
 
@@ -106,14 +151,22 @@ class ParseRidge(LoggerMixin):
                     f"UAS: {dev_scores['UAS']:.2f}"
                 )
 
-            duration = time() - t0
-            self.logger.info(
-                f"Finished epoch in "
-                f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
+                duration = time() - t0
 
-    def _run_epoch(self, corpus, batch_size=4, error_probability=0.1,
-                   margin_threshold=2.5, oov_probability=0.25,
-                   token_dropout=0.01, update_pbar_interval=50, epoch=None):
+                self.reporter.report_epoch(
+                    epoch=epoch + 1,
+                    epoch_loss=epoch_metric.loss,
+                    train_las=train_scores["LAS"],
+                    train_uas=train_scores["UAS"],
+                    dev_las=dev_scores["LAS"],
+                    dev_uas=dev_scores["UAS"]
+                )
+
+                self.logger.info(
+                    f"Finished epoch in "
+                    f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
+
+    def _run_epoch(self, dataloader, criterion, epoch=None):
         """
         Wrapper that trains the model on the whole data set once.
 
@@ -129,190 +182,56 @@ class ParseRidge(LoggerMixin):
         epoch_metric : Metric object
             Contains statistics about the performance of this epoch.
         """
-
-        # Set our model into training mode which enables dropout and
-        # the accumulation of gradients
-        self.model.train()
         self.model.before_epoch()
 
-        loss = []
-
         epoch_metric = Metric()
-        interval_metric = Metric()
 
-        iterator = CorpusIterator(
-            corpus,
-            batch_size=batch_size,
-            shuffle=True,
-            train=True,
-            oov_probability=oov_probability,
-            group_by_length=True,
-            token_dropout=token_dropout
-        )
-        with tqdm(total=len(corpus)) as pbar:
-            pbar_template = (
-                "Batch Loss: {loss:8.4f} | Updates: {updates:5.1f} | "
-                "Induced Errors: {errors:3.1f}"
+        loss_values = []
+
+        progress_bar = tqdm(dataloader, total=len(dataloader.dataset), desc="Training")
+        for i, batch_tuple in enumerate(dataloader):
+            batch = ConLLDataset.TrainingBatch(*batch_tuple)
+
+            self.model.before_batch()
+
+            pred_transitions, pred_relations = self.model(
+                sentences=batch.sentences,
+                sentence_lengths=batch.sentence_lengths,
+                stacks=batch.stacks,
+                stack_lengths=batch.stack_lengths,
+                buffers=batch.buffers,
+                buffer_lengths=batch.buffer_lengths
             )
-            pbar.set_description(pbar_template.format(
-                loss=0, updates=0, errors=0
-            ))
-            for batch in iterator:
-                loss, batch_metric = self._run_training_batch(
-                    batch, loss, error_probability, margin_threshold, epoch=epoch)
 
-                epoch_metric += batch_metric
-                interval_metric += batch_metric
+            # Compute loss
+            loss_transition = criterion(pred_transitions, batch.gold_transitions)
+            loss_relation = criterion(pred_relations, batch.gold_relations)
 
-                num_sentences = interval_metric.iterations * batch_size
-                if num_sentences >= update_pbar_interval and interval_metric.num_updates:
-                    assert num_sentences > 0
-                    # Update the progress bar less frequently
+            loss = loss_transition + loss_relation
 
-                    desc = pbar_template.format(
-                        loss=interval_metric.loss / interval_metric.num_updates,
-                        updates=interval_metric.num_updates / num_sentences,
-                        errors=interval_metric.num_errors / num_sentences,
-                    )
-                    pbar.set_description(desc)
-                    interval_metric = Metric()
+            # Back-propagate
+            loss.backward()
+            self.trainer.optimizer.step()
+            self.trainer.optimizer.zero_grad()
 
-                pbar.update(len(batch[1]))
+            self.model.after_batch()
+
+            loss_values.append(loss.item())
+            if i > 0 and i % 100 == 0 and self.reporter:
+                self.reporter.report_loss(
+                    loss_value=sum(loss_values),
+                    epoch=epoch
+                )
+                loss_values = []
+
+            epoch_metric += Metric(
+                loss=loss.item()
+            )
+
+            progress_bar.update(len(batch_tuple[0]))
 
         self.model.after_epoch()
         return epoch_metric
-
-    def _run_training_batch(self, batch, loss, error_probability, margin_threshold, epoch=None):
-        """
-        Trains the parser model on the data given in `batch` and performs
-        back-propagation, if the number of updates is above a certain
-        threshold.
-
-        Parameters
-        ----------
-        batch : tuple of tensor and list of Sentence
-            A slice of the training data to train on.
-        loss : list of tensors
-            Back-propagation is only performed when a certain number of updates
-            has been made. If the preceding batch did not update the weights,
-            the losses are passed to this batch.
-
-        Returns
-        -------
-        loss : list of tensors
-            If no back-propagation has been executed, it is a list of margin
-            tensors that needs to be passed to the next batch.
-            Otherwise empty.
-        batch_metric : Metric object
-            Object that contains statistics about the executed batch like
-            the loss, number of errors and number of updates.
-        """
-        self.model.before_batch()
-
-        # The batch contains of a tensor of processed sentences
-        # that are ready to be used as an input to the LSTM
-        # and the corresponding sentence objects that are needed
-        # to grade the performance of the predictions.
-        sentence_features, sentences = batch
-
-        # Collect all kinds of information here
-        batch_metric = Metric()
-
-        # Run the sentence through the LSTM to get the outputs.
-        # These outputs will stay the same for the sentence,
-        # so we compute them once in the beginning.
-        contextualized_tokens_batch = self.model.compute_lstm_output(
-            sentences, sentence_features
-        )
-
-        # Create the initial configurations for all sentences in the batch
-        configurations = [
-            Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in
-            zip(contextualized_tokens_batch, sentences)
-        ]
-
-        gold_transitions_batch = []
-        gold_relations_batch = []
-
-        transition_logits_batch = []
-        relation_logits_batch = []
-
-        # Main loop for the sentences in this batch
-        while configurations:
-            # Remove all finished configurations
-            configurations = [c for c in configurations if not c.is_terminal]
-            if not configurations:
-                break
-
-            # Pass the stacks and buffers through the MLPs in one batch
-            configurations, transition_logits, relation_logits = \
-                self._update_classification_scores(configurations)
-
-            transition_logits_batch.append(transition_logits)
-            relation_logits_batch.append(relation_logits)
-
-            # The actual computation of the loss must be done sequentially
-            for configuration in configurations:
-                # Predict a list of possible actions: Transitions, their
-                # label (if the transition is LEFT/ RIGHT_ARC) and the
-                # score of the action based on the MLP output.
-                actions = configuration.predict_actions()
-
-                # Calculate the 'costs' for each action. These determine
-                # which action should be performed based on the given
-                # conf
-                costs, shift_case = configuration.get_transition_costs(actions)
-
-                # Compute the best valid and the best wrong action,
-                # where the latter on is a transition that is technically
-                # possible, but would introduce an error compared to the
-                # gold tree. To keep the model robust, we sometimes
-                # decided, however, to use it instead of the valid one.
-                best_action, best_valid_action, best_wrong_action, valid_actions = \
-                    configuration.select_actions(
-                        actions, costs, error_probability, margin_threshold)
-
-                # Apply the dynamic oracle to update the sentence structure
-                # for the case that the chosen action does not exactly
-                # follow the gold tree.
-                configuration.update_dynamic_oracle(best_action, shift_case)
-
-                # Apply the best action and update the stack and buffer
-                configuration.apply_transition(best_action)
-
-                gold_transitions, gold_relations = \
-                    configuration.get_gold_labels(best_valid_action)
-
-                gold_transitions_batch.append(gold_transitions)
-                gold_relations_batch.append(gold_relations)
-
-                if best_action.transition in [T.LEFT_ARC, T.RIGHT_ARC]:
-                    batch_metric.num_transitions += 1
-                if best_action != best_valid_action:
-                    batch_metric.num_errors += 1
-
-        # Compute loss
-        gold_transitions_batch = torch.stack(gold_transitions_batch)
-        gold_relations_batch = torch.stack(gold_relations_batch)
-
-        transition_logits_batch = torch.cat(transition_logits_batch)
-        relation_logits_batch = torch.cat(relation_logits_batch)
-
-        criterion = nn.CrossEntropyLoss()
-        loss_transition = criterion(transition_logits_batch, gold_transitions_batch)
-        loss_relation = criterion(relation_logits_batch, gold_relations_batch)
-
-        loss = loss_transition + loss_relation
-
-        loss.backward()
-        self.trainer.optimizer.step()
-        self.trainer.optimizer.zero_grad()
-
-        batch_metric.loss += loss.item()
-        batch_metric.num_backprop += 1
-
-        return loss, batch_metric
 
     def predict(self, corpus, batch_size=512, remove_pbar=True):
         self.model = self.model.eval()
@@ -341,19 +260,26 @@ class ParseRidge(LoggerMixin):
 
         sentence_features, sentences = batch
 
+        sentence_features = torch.squeeze(sentence_features, dim=1)
+
+        sentence_lengths = [len(sentence) for sentence in sentences]
+        sentence_lengths = torch.tensor(
+            sentence_lengths, dtype=torch.int64, device=self.device)
+
         contextualized_tokens_batch = self.model.compute_lstm_output(
-            sentences, sentence_features
+            sentence_features, sentence_lengths
         )
 
         configurations = [
-            Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in
-            zip(contextualized_tokens_batch, sentences)
+            Configuration(sentence, contextualized_input, self.model,
+                          sentence_features=sentence_feature)
+            for contextualized_input, sentence, sentence_feature in
+            zip(contextualized_tokens_batch, sentences, sentence_features)
         ]
 
         while configurations:
             # Pass the stacks and buffers through the MLPs in one batch
-            configurations, _, _  = self._update_classification_scores(
+            configurations, _, _ = self._update_classification_scores(
                 configurations)
 
             # The actual computation of the loss must be done sequentially
@@ -395,43 +321,29 @@ class ParseRidge(LoggerMixin):
         :param configurations: List of not finished Configurations
         :return: Updated Configurations
         """
-
-        """ Encode action sequence """
-        # if all([configuration.actions_history for configuration in configurations]):
-        #     actions_encoding_batch, actions_encoder_hidden = \
-        #         self.model.actions_encoder(
-        #             [c.actions_history[-1] for c in configurations],
-        #             [c.actions_hidden_state for c in configurations],
-        #             [c.actions_cell_state for c in configurations]
-        #         )
-        # else:
-        #     # If this is the first iteration for the batch, we have to initialize the
-        #     # hidden state of the action encode
-        #     actions_encoding_batch, actions_encoder_hidden = \
-        #         self.model.actions_encoder.get_initial_state(
-        #             batch_size=len(configurations)
-        #         )
-        #
-        # actions_hidden_state_batch, actions_cell_state_batch = actions_encoder_hidden
-        # actions_hidden_state_batch = actions_hidden_state_batch.transpose(0, 1)
-        # actions_cell_state_batch = actions_cell_state_batch.transpose(0, 1)
-
-        clf_transitions, clf_relations = self.model(
-            sentence_encoding_batch=[c.contextualized_input for c in configurations],
-            action_encoding_batch=None, #actions_encoding_batch,
-            sentences=[c.sentence for c in configurations],
-            predicted_sentences_batch=[c.predicted_sentence for c in configurations],
-            stack_index_batch=[c.stack for c in configurations],
-            buffer_index_batch=[c.buffer for c in configurations],
-            use_legacy=False,
-            # prev_decoder_hidden_state_batch=[c.decoder_hidden_state for c in
-            #                                  configurations],
-            # prev_decoder_cell_state_batch=[c.decoder_cell_state for c in configurations]
+        stacks = [c.stack_tensor for c in configurations]
+        stacks_padded = pad_tensor_list(stacks)
+        stacks_lengths = torch.tensor(
+            [len(c.stack) for c in configurations],
+            dtype=torch.int64, device=self.device
         )
 
-        # decoder_hidden_state_batch, decoder_cell_state_batch = decoder_hidden
-        # decoder_hidden_state_batch = decoder_hidden_state_batch.transpose(0, 1)
-        # decoder_cell_state_batch = decoder_cell_state_batch.transpose(0, 1)
+        buffers = [c.buffer_tensor for c in configurations]
+        buffers_padded = pad_tensor_list(buffers)
+        buffer_lengths = torch.tensor(
+            [len(c.buffer) for c in configurations],
+            dtype=torch.int64, device=self.device
+        )
+
+        clf_transitions, clf_relations = self.model(
+            sentences=torch.stack([c.sentence_features for c in configurations]),
+            sentence_lengths=None,
+            sentence_encoding_batch=[c.contextualized_input for c in configurations],
+            buffers=buffers_padded,
+            buffer_lengths=buffer_lengths,
+            stacks=stacks_padded,
+            stack_lengths=stacks_lengths
+        )
 
         # Isolate the columns for the transitions
         left_arc = clf_transitions[:, T.LEFT_ARC.value].view(-1, 1)
@@ -481,12 +393,6 @@ class ParseRidge(LoggerMixin):
             right_arc_scores_indices: np.array
             right_arc_scores_sorted: torch.Tensor
 
-            # actions_hidden_state: torch.Tensor
-            # actions_cell_state: torch.Tensor
-
-            # decoder_hidden_state: torch.Tensor
-            # decoder_cell_state: torch.Tensor
-
             def apply(self):
                 self.configuration.scores = {
                     T.SHIFT: self.shift_score,
@@ -499,18 +405,10 @@ class ParseRidge(LoggerMixin):
                     (T.RIGHT_ARC, "best_scores_indices"): self.right_arc_scores_indices
                 }
 
-                # self.configuration.actions_hidden_state = self.actions_hidden_state
-                # self.configuration.actions_cell_state = self.actions_cell_state
-
-                # self.configuration.decoder_hidden_state = self.decoder_hidden_state
-                # self.configuration.decoder_cell_state = self.decoder_cell_state
-
         combinations = zip(
             configurations, shift_score_batch, swap_score_batch,
             left_arc_scores_batch, left_arc_scores_indices, left_arc_scores_sorted,
-            right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted,
-            #actions_hidden_state_batch, actions_cell_state_batch,
-            # decoder_hidden_state_batch, decoder_cell_state_batch
+            right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted
         )
 
         # Update the result of the classifiers in the configurations

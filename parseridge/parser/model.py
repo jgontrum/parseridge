@@ -5,8 +5,7 @@ from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.sequence_attention import SequenceAttention
-from parseridge.parser.modules.utils import initialize_xavier_dynet_, \
-    lookup_tensors_for_indices
+from parseridge.parser.modules.utils import initialize_xavier_dynet_
 from parseridge.utils.helpers import get_parameters
 
 
@@ -22,6 +21,7 @@ class ParseridgeModel(Module):
                  lstm_layers=2,
                  transition_mlp_layers=None,
                  relation_mlp_layers=None,
+                 embeddings=None,
                  device="cpu"):
 
         super(ParseridgeModel, self).__init__()
@@ -68,19 +68,22 @@ class ParseridgeModel(Module):
             device=device
         )
 
+        if embeddings:
+            self.input_encoder.load_external_embeddings(embeddings)
+
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
         self.stack_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
             lstm_size=False,
-            positional_embedding_size=256,
+            positional_embedding_size=64,
             device=device
         )
 
         self.buffer_attention = SequenceAttention(
             input_size=self.input_encoder.output_size,
             lstm_size=False,
-            positional_embedding_size=256,
+            positional_embedding_size=64,
             device=device
         )
 
@@ -89,7 +92,7 @@ class ParseridgeModel(Module):
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
+            activation=nn.ReLU,
             device=device
         )
 
@@ -98,7 +101,7 @@ class ParseridgeModel(Module):
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
+            activation=nn.ReLU,
             device=device
         )
 
@@ -107,9 +110,6 @@ class ParseridgeModel(Module):
         )
 
         initialize_xavier_dynet_(self)
-
-        self.logger.info("Loading external word embeddings...")
-        # self.input_encoder.load_external_embeddings()
         self.logger.info(f"Learning {len(get_parameters(self))} parameters.")
 
     # Hooks
@@ -120,58 +120,42 @@ class ParseridgeModel(Module):
         pass
 
     def before_epoch(self):
+        self.train()
         self.zero_grad()
 
     def after_epoch(self):
         pass
 
-    def compute_lstm_output(self, sentences, sentence_features):
-        outputs, _ = self.input_encoder(sentences, sentence_features)
+    def compute_lstm_output(self, sentences, sentence_lengths):
+        outputs, _ = self.input_encoder(sentences, sentence_lengths)
         return outputs
 
-    @staticmethod
-    def _concatenate_stack_and_buffer(stack, buffer):
-        return torch.cat((stack, buffer), dim=1)
+    def forward(self, sentences, sentence_lengths, stacks, stack_lengths,
+                buffers, buffer_lengths, sentence_encoding_batch=None):
 
-    def compute_legacy_mlp_input(self, lstm_out_batch, stack_index_batch,
-                                 buffer_index_batch):
-        stack_batch = lookup_tensors_for_indices(
-            indices_batch=[stack for stack in stack_index_batch],
-            sequence_batch=lstm_out_batch,
-            padding=self._mlp_padding,
-            size=max([len(s) for s in stack_index_batch])
-        )
+        if sentence_encoding_batch is None:
+            # Pass all sentences through the input encoder to create contextualized
+            # token tensors.
+            sentence_encoding_batch = self.compute_lstm_output(
+                sentences, sentence_lengths
+            )
+        else:
+            # If we already have the output of the input encoder as lists,
+            # create a tensor out of them. This happens usually in prediction.
+            sentence_encoding_batch = torch.stack(sentence_encoding_batch)
 
-        stack_batch = torch.sum(stack_batch, dim=1)
-
-        buffer_batch = lookup_tensors_for_indices(
-            indices_batch=[buffer for buffer in buffer_index_batch],
-            sequence_batch=lstm_out_batch,
-            padding=self._mlp_padding,
-            size=max([len(s) for s in buffer_index_batch])
-        )
-
-        buffer_batch = torch.sum(buffer_batch, dim=1)
-
-        return self._concatenate_stack_and_buffer(stack_batch, buffer_batch)
-
-    def forward(self, sentence_encoding_batch, action_encoding_batch, sentences,
-                predicted_sentences_batch,
-                # prev_decoder_hidden_state_batch, prev_decoder_cell_state_batch,
-                stack_index_batch=None, buffer_index_batch=None, use_legacy=False,
-                ):
-
-        # Turn the lists of tensors into one tensor with a batch dimension
-        sentence_encoding_batch = torch.stack(sentence_encoding_batch)
-
+        # Compute a representation of the stack / buffer as an weighted average based
+        # on the attention weights.
         stack_batch_attn = self.stack_attention(
-            indices_batch=stack_index_batch,
-            sentence_encoding_batch=sentence_encoding_batch,
+            indices_batch=stacks,
+            indices_lengths=stack_lengths,
+            sentence_encoding_batch=sentence_encoding_batch
         )
 
         buffer_batch_attn = self.buffer_attention(
-            indices_batch=buffer_index_batch,
-            sentence_encoding_batch=sentence_encoding_batch,
+            indices_batch=buffers,
+            indices_lengths=buffer_lengths,
+            sentence_encoding_batch=sentence_encoding_batch
         )
 
         mlp_input = torch.cat((stack_batch_attn, buffer_batch_attn), dim=1)

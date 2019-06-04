@@ -57,16 +57,19 @@ class SequenceAttention(Module):
     def padding_tensor(self):
         return torch.tanh(self.padding_tensor_param)
 
-    def forward(self, indices_batch, sentence_encoding_batch):
+    def forward(self, indices_batch, indices_lengths, sentence_encoding_batch, debug=False):
+        if indices_batch.shape[1] == 0:
+            return torch.zeros(self.output_size, device=self.device).expand(
+                (indices_batch.shape[0], self.output_size)
+            )
+
         batch = lookup_tensors_for_indices(
             indices_batch=indices_batch,
-            sequence_batch=sentence_encoding_batch,
-            padding=self.padding_tensor,
-            size=max([len(s) for s in indices_batch])
+            sequence_batch=sentence_encoding_batch
         )
 
         batch_mask = create_mask(
-            [len(sequence) for sequence in indices_batch],
+            indices_lengths,
             max_len=batch.size(1),
             device=self.device
         )
@@ -79,12 +82,11 @@ class SequenceAttention(Module):
 
         if self.positional_embedding_size:
             positional_embeddings = self.positional_embeddings(
-                [len(sequence) for sequence in indices_batch])
+                indices_lengths.cpu().tolist())
 
             batch = torch.cat((batch, positional_embeddings), dim=2)
 
-        batch_attn = self.attention_layer(
-            batch, mask=batch_mask
+        return self.attention_layer(
+            batch, mask=batch_mask, debug=debug
         )
 
-        return batch_attn

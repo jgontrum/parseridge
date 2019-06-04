@@ -192,6 +192,30 @@ def parse_cli_arguments():
         required=False
     )
 
+    analytics_group = parser.add_argument_group("Analytics")
+    analytics_group.add_argument(
+        "--google_sheet_id",
+        type=str,
+        help="The id of the Google Sheet to save the report in.",
+        required=False
+    )
+
+    analytics_group.add_argument(
+        "--google_sheet_auth_file",
+        type=str,
+        help="The auth.json file to for the Google API.",
+        required=False,
+        default="google_sheets_auth.json"
+    )
+
+    parser.add_argument(
+        "--embeddings_file",
+        type=str,
+        default="",
+        help="Path to external embeddings to load.",
+        required=False
+    )
+
     parser.add_argument(
         "--comment",
         type=str,

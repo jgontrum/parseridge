@@ -20,6 +20,7 @@ class Attention(Module):
             nn.Tanh()
         )
 
+        # TODO add cosine or dot product here instead of learning the function
         self.context_weight = nn.Linear(
             in_features=input_size,
             out_features=1
@@ -27,7 +28,7 @@ class Attention(Module):
 
         initialize_xavier_dynet_(self)
 
-    def forward(self, input: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, input: torch.Tensor, mask: torch.Tensor = None, debug=False) -> torch.Tensor:
         word_representations = self.word_weight(input)
 
         similarity_scores_logits = self.context_weight(word_representations)
@@ -41,5 +42,8 @@ class Attention(Module):
         weighted_input = input * activation_energies
 
         sentence_vector = torch.sum(weighted_input, dim=1)
+
+        if debug:
+            return sentence_vector, activation_energies
 
         return sentence_vector

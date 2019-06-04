@@ -77,6 +77,7 @@ class Action:
     def get_relation_object(self):
         return Relation(self.transition, self.relation)
 
+
 def get_device():
     return torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"
@@ -106,3 +107,9 @@ def set_seed(seed=None):
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
             torch.cuda.manual_seed(seed)
+
+
+class RobustDict(dict):
+
+    def __getitem__(self, item):
+        return self.get(item)
