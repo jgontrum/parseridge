@@ -27,12 +27,13 @@ class ExternalEmbeddings(LoggerMixin):
 
     def get_weight_matrix(self, vocabulary, device="cpu"):
         embeddings = [
-            np.random.rand(self.dim),
-            np.zeros(self.dim, dtype=float)
+            np.random.rand(self.dim),           # OOV
+            np.zeros(self.dim, dtype=float),    # PAD
+            np.random.rand(self.dim),           # NUM
         ]
 
         for token, id_ in sorted(vocabulary._item_to_id.items(), key=lambda x: x[1]):
-            if id_ <= 1:
+            if id_ <= 2:
                 # Ignore <<OOV>> and <<PADDING>> vectors
                 continue
 
