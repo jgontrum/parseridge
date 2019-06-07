@@ -69,6 +69,7 @@ def start():
             google_sheet_id=options.google_sheet_id,
             google_sheet_auth_file=options.google_sheet_auth_file,
             embeddings=embeddings,
+            loss_function=options.loss_function,
             params=vars(options)
         )
 

@@ -13,6 +13,7 @@ from parseridge.corpus.relations import Relations
 from parseridge.corpus.training_data import ConLLDataset
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.configuration import Configuration
+from parseridge.parser.loss import Criterion
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.modules.utils import pad_tensor_list
 from parseridge.parser.trainer import Trainer
@@ -46,7 +47,8 @@ class Parseridge(LoggerMixin):
             lstm_dropout=0.33, mlp_dropout=0.25, batch_size=4, pred_batch_size=512,
             num_epochs=3, gradient_clipping=10.0, weight_decay=0.0, learning_rate=0.001,
             update_size=50, loss_factor=0.75, loss_strategy="avg", google_sheet_id=None,
-            google_sheet_auth_file=None, embeddings=None, params=None):
+            google_sheet_auth_file=None, embeddings=None, loss_function="CrossEntropy",
+            params=None):
 
         # The vocabulary maps tokens to integer ids, while the relations object
         # manages the relation labels and their position in the MLP output.
@@ -76,15 +78,14 @@ class Parseridge(LoggerMixin):
             collate_fn=ConLLDataset.collate_batch
         )
 
-        # After reading in the training data, make sure that no changes can be made
-        # to the signatures.
-        vocabulary.read_only()
         relations.signature.read_only()
 
         # Prepare corpus objects which store information about the whole sentence.
         # They are used for evaluation, not training.
         train_corpus = Corpus(train_sentences, vocabulary, device=self.device)
         dev_corpus = Corpus(dev_sentences, vocabulary, device=self.device)
+
+        vocabulary.read_only()
 
         self.model = ParseridgeModel(
             relations=relations,
@@ -112,7 +113,7 @@ class Parseridge(LoggerMixin):
             update_size=update_size
         )
 
-        criterion = nn.CrossEntropyLoss()
+        criterion = Criterion(loss_function=loss_function)
 
         # torch.autograd.set_detect_anomaly(True)
 
@@ -166,7 +167,7 @@ class Parseridge(LoggerMixin):
                     f"Finished epoch in "
                     f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
 
-    def _run_epoch(self, dataloader, criterion, epoch=None):
+    def _run_epoch(self, dataloader, criterion: Criterion, epoch=None):
         """
         Wrapper that trains the model on the whole data set once.
 
@@ -203,11 +204,18 @@ class Parseridge(LoggerMixin):
                 buffer_lengths=batch.buffer_lengths
             )
 
-            # Compute loss
-            loss_transition = criterion(pred_transitions, batch.gold_transitions)
-            loss_relation = criterion(pred_relations, batch.gold_relations)
-
-            loss = loss_transition + loss_relation
+            # Compute loss. Depending on the chosen loss strategy only a part of the
+            # arguments will actually be used in the computations of the loss value.
+            loss = criterion(
+                pred_transitions=pred_transitions,
+                gold_transitions=batch.gold_transitions,
+                pred_relations=pred_relations,
+                gold_relations=batch.gold_relations,
+                wrong_transitions=batch.wrong_transitions,
+                wrong_transitions_lengths=batch.wrong_transitions_lengths,
+                wrong_relations=batch.wrong_relations,
+                wrong_relations_lengths=batch.wrong_relations_lengths
+            )
 
             # Back-propagate
             loss.backward()
@@ -216,6 +224,7 @@ class Parseridge(LoggerMixin):
 
             self.model.after_batch()
 
+            # Log the loss for analytics
             loss_values.append(loss.item())
             if i > 0 and i % 100 == 0 and self.reporter:
                 self.reporter.report_loss(
@@ -230,6 +239,7 @@ class Parseridge(LoggerMixin):
 
             progress_bar.update(len(batch_tuple[0]))
 
+        progress_bar.close()
         self.model.after_epoch()
         return epoch_metric
 

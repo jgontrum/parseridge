@@ -1,5 +1,7 @@
 import argparse
 
+from parseridge.parser.loss import Criterion
+
 
 def parse_cli_arguments():
     parser = argparse.ArgumentParser(
@@ -190,6 +192,15 @@ def parse_cli_arguments():
         default=4,
         help="Number of sentences per batch.",
         required=False
+    )
+
+    regularization_group.add_argument(
+        "--loss_function",
+        type=str,
+        default="CrossEntropy",
+        help="Name of the loss function to use.",
+        required=False,
+        choices=list(Criterion.LOSS_FUNCTIONS.keys())
     )
 
     analytics_group = parser.add_argument_group("Analytics")

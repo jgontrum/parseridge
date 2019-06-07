@@ -17,8 +17,6 @@ class Vocabulary(Signature):
         self.oov = self.get_id("<<<OOV>>>")
         self.embeddings_vocab = embeddings_vocab
 
-        assert "clinics" in self.embeddings_vocab
-
     def _normalize(self, word):
         return 'NUM' if self.number_regex.match(word) else word.lower()
 

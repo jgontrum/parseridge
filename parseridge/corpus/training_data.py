@@ -19,6 +19,8 @@ class ConfigurationGenerator(LoggerMixin):
         buffer: torch.Tensor
         gold_transition: torch.Tensor
         gold_relation: torch.Tensor
+        wrong_transitions: torch.Tensor
+        wrong_relations: torch.Tensor
 
     def __init__(self, vocabulary, relations, oov_probability=0.25,
                  token_dropout=0.001, error_probability=0.1, device="cpu"):
@@ -54,24 +56,22 @@ class ConfigurationGenerator(LoggerMixin):
             costs, shift_case = configuration.get_transition_costs(possible_actions)
 
             valid_actions = configuration.get_valid_actions(possible_actions, costs)
+            wrong_actions = configuration.get_wrong_actions(possible_actions, costs)
 
             if valid_actions:
                 actions = [("valid", choice(valid_actions))]
 
                 if random() < self.error_probability and costs[T.SWAP] != 0:
-                    wrong_actions = configuration.get_wrong_actions(possible_actions,
-                                                                    costs)
-                    wrong_actions = self._remove_label_duplicates(wrong_actions)
+                    selected_wrong_actions = self._remove_label_duplicates(wrong_actions)
 
-                    valid_transitions = set([a.transition for a in valid_actions])
-                    wrong_actions = [
-                        a for a in wrong_actions
-                        if
-                        a.transition != T.SWAP and a.transition not in valid_transitions
+                    transitions = set([a.transition for a in valid_actions])
+                    selected_wrong_actions = [
+                        a for a in selected_wrong_actions
+                        if a.transition != T.SWAP and a.transition not in transitions
                     ]
 
-                    if wrong_actions:
-                        wrong_action = choice(wrong_actions)
+                    if selected_wrong_actions:
+                        wrong_action = choice(selected_wrong_actions)
                         actions.append(("wrong", wrong_action))
 
                 shuffle(actions)
@@ -94,12 +94,17 @@ class ConfigurationGenerator(LoggerMixin):
                     gold_transition, gold_relation = self._get_gold_labels(action)
 
                     if source == "valid":
+                        wrong_transitions_tensor, wrong_relations_tensor = \
+                            self._get_all_labels(wrong_actions)
+
                         yield ConfigurationGenerator.ConfigurationItem(
                             sentence=self._get_sentence_tensor(new_config.sentence),
                             stack=stack,
                             buffer=buffer,
                             gold_transition=gold_transition,
-                            gold_relation=gold_relation
+                            gold_relation=gold_relation,
+                            wrong_transitions=wrong_transitions_tensor,
+                            wrong_relations=wrong_relations_tensor
                         )
 
                     for configuration_item in self._generate_next_datapoint(new_config):
@@ -159,6 +164,24 @@ class ConfigurationGenerator(LoggerMixin):
         return (
             torch.tensor(action.transition.value, dtype=torch.int64, device=self.device),
             torch.tensor(relation_id, dtype=torch.int64, device=self.device)
+        )
+
+    def _get_all_labels(self, actions):
+        transitions = []
+        relations = []
+
+        for action in actions:
+            relation_id = self.relations.label_signature.get_id(
+                action.get_relation_object()
+            )
+            transition_id = action.transition.value
+
+            relations.append(relation_id)
+            transitions.append(transition_id)
+
+        return (
+            torch.tensor(transitions, dtype=torch.int64, device=self.device),
+            torch.tensor(relations, dtype=torch.int64, device=self.device)
         )
 
     @staticmethod
@@ -231,13 +254,12 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
     def __getitem__(self, index):
         item = self.data_points[index]
 
-        return (
-            item.sentence, self.get_length_tensor(item.sentence),
-            item.stack, self.get_length_tensor(item.stack),
-            item.buffer, self.get_length_tensor(item.buffer),
-            item.gold_transition, self.get_length_tensor(item.gold_transition),
-            item.gold_relation, self.get_length_tensor(item.gold_relation)
-        )
+        features = []
+        for feature in item:
+            features.append(feature)
+            features.append(self.get_length_tensor(feature))
+
+        return tuple(features)
 
     @staticmethod
     def collate_batch(batch):
@@ -292,3 +314,7 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         gold_transitions_lengths: torch.Tensor
         gold_relations: torch.Tensor
         gold_relations_lengths: torch.Tensor
+        wrong_transitions: torch.Tensor
+        wrong_transitions_lengths: torch.Tensor
+        wrong_relations: torch.Tensor
+        wrong_relations_lengths: torch.Tensor
