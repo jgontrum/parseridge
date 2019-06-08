@@ -46,6 +46,13 @@ class Attention(Module):
         # Apply normalization function (e.g. softmax)
         attention_energies = self.normalize(attention_logits)
 
+        # Replace nan with zeros. Happens when a sequence length is 0.
+        attention_energies = torch.where(
+            condition=torch.isnan(attention_energies),
+            self=torch.zeros_like(attention_energies),
+            other=attention_energies
+        )
+
         # Multiply the values with the attention scores
         weighted_values = values * attention_energies
 
