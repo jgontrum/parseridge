@@ -116,3 +116,9 @@ def lookup_tensors_for_indices(indices_batch, sequence_batch):
         batch.append(items)
 
     return torch.stack(batch).contiguous()
+
+def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):
+  max_len = batch.size(1)
+  mask = torch.arange(max_len, device=device)[None, :] < lengths[:, None]
+  batch[~mask] = masked_value
+  return batch
