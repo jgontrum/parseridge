@@ -68,9 +68,6 @@ class ParseridgeModel(Module):
             device=device
         )
 
-        if embeddings:
-            self.input_encoder.load_external_embeddings(embeddings)
-
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
         self.stack_attention = SequenceAttention(
@@ -110,6 +107,10 @@ class ParseridgeModel(Module):
         )
 
         initialize_xavier_dynet_(self)
+
+        if embeddings:
+            self.input_encoder.load_external_embeddings(embeddings)
+
         self.logger.info(f"Learning {len(get_parameters(self))} parameters.")
 
     # Hooks

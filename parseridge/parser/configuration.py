@@ -44,6 +44,7 @@ class Configuration(LoggerMixin):
         self.actions_history = []
         self.actions_hidden_state = None
         self.actions_cell_state = None
+        self.finished_tokens = []
 
         self.decoder_hidden_state = None
         self.decoder_cell_state = None
@@ -470,6 +471,8 @@ class Configuration(LoggerMixin):
             self.predicted_sentence[dependent].relation = action.relation
             self.predicted_sentence[parent].dependents.append(dependent)
 
+            self.finished_tokens.append(dependent)
+
         self.actions_history.append(action)
 
     @staticmethod
@@ -513,9 +516,8 @@ class Configuration(LoggerMixin):
         return False if self.model is None else self.model.training
 
     @property
-    def processed_tokens(self):
-        return set([token.id for token in self.sentence]) \
-               - set(chain(self.buffer, self.stack))
+    def finished_tokens_tensor(self):
+        return torch.tensor(self.finished_tokens, dtype=torch.int64, device=self.device)
 
     @property
     def stack_tensor(self):
