@@ -5,7 +5,7 @@ from parseridge.utils.logger import LoggerMixin
 ID, FORM, LEMMA, UPOS, XPOS, FEATS, HEAD, DEPREL, DEPS, MISC = range(10)
 
 
-class CoNNLEvaluator(LoggerMixin):
+class CoNLLEvaluationScript(LoggerMixin):
     """
     Based on v. 1.0 of the CoNLL 2017 UD Parsing evaluation script by
     the Institute of Formal and Applied Linguistics (UFAL),
@@ -83,7 +83,7 @@ class CoNNLEvaluator(LoggerMixin):
 
         def append_aligned_words(self, gold_word, system_word):
             self.matched_words.append(
-                CoNNLEvaluator.AlignmentWord(gold_word, system_word))
+                CoNLLEvaluationScript.AlignmentWord(gold_word, system_word))
             self.matched_words_map[system_word] = gold_word
 
         def fill_parents(self):
@@ -110,7 +110,7 @@ class CoNNLEvaluator(LoggerMixin):
             while gold_ud.characters[index] == system_ud.characters[index]:
                 index += 1
 
-            raise CoNNLEvaluator.UDError(
+            raise CoNLLEvaluationScript.UDError(
                 f"The concatenation of tokens in the gold file and in "
                 f"th system file differ!\n" +
                 f"First 20 differing characters in gold file: "
@@ -147,7 +147,7 @@ class CoNNLEvaluator(LoggerMixin):
 
     @staticmethod
     def load_conllu(stream):
-        ud = CoNNLEvaluator.UDRepresentation()
+        ud = CoNLLEvaluationScript.UDRepresentation()
 
         # Load the CoNLL-U file
         index, sentence_start = 0, None
@@ -165,18 +165,18 @@ class CoNNLEvaluator(LoggerMixin):
                 if line.startswith("#"):
                     continue
                 # Start a new sentence
-                ud.sentences.append(CoNNLEvaluator.UDSpan(index, 0))
+                ud.sentences.append(CoNLLEvaluationScript.UDSpan(index, 0))
                 sentence_start = len(ud.words)
             if not line:
                 # Add parent UDWord links and check there are no cycles
                 def process_word(word):
                     if word.parent == "remapping":
-                        raise CoNNLEvaluator.UDError(
+                        raise CoNLLEvaluationScript.UDError(
                             "There is a cycle in a sentence")
                     if word.parent is None:
                         head = int(word.columns[HEAD])
                         if head > len(ud.words) - sentence_start:
-                            raise CoNNLEvaluator.UDError(
+                            raise CoNLLEvaluationScript.UDError(
                                 f"HEAD '{word.columns[HEAD]}' "
                                 f"points outside of the sentence"
                             )
@@ -193,7 +193,7 @@ class CoNNLEvaluator(LoggerMixin):
                 # Check there is a single root node
                 if len([word for word in ud.words[sentence_start:] if
                         word.parent is None]) != 1:
-                    raise CoNNLEvaluator.UDError(
+                    raise CoNLLEvaluationScript.UDError(
                         f"There are multiple roots in a sentence. "
                         f"(Line {line_number})."
                     )
@@ -206,7 +206,7 @@ class CoNNLEvaluator(LoggerMixin):
             # Read next token/word
             columns = line.split("\t")
             if len(columns) != 10:
-                raise CoNNLEvaluator.UDError(
+                raise CoNLLEvaluationScript.UDError(
                     f"The CoNLL-U line does not contain "
                     f"10 tab-separated columns: '{line}'"
                 )
@@ -219,13 +219,13 @@ class CoNNLEvaluator(LoggerMixin):
             # even if one of them tokenizes the space.
             columns[FORM] = columns[FORM].replace(" ", "")
             if not columns[FORM]:
-                raise CoNNLEvaluator.UDError(
+                raise CoNLLEvaluationScript.UDError(
                     "There is an empty FORM in the CoNLL-U file")
 
             # Save token
             ud.characters.extend(columns[FORM])
             ud.tokens.append(
-                CoNNLEvaluator.UDSpan(index, index + len(columns[FORM])))
+                CoNLLEvaluationScript.UDSpan(index, index + len(columns[FORM])))
             index += len(columns[FORM])
 
             # Handle multi-word tokens to save word(s)
@@ -233,7 +233,7 @@ class CoNNLEvaluator(LoggerMixin):
                 try:
                     start, end = map(int, columns[ID].split("-"))
                 except:
-                    raise CoNNLEvaluator.UDError(
+                    raise CoNLLEvaluationScript.UDError(
                         "Cannot parse multi-word token ID '{}'".format(
                             columns[ID]))
 
@@ -242,23 +242,23 @@ class CoNNLEvaluator(LoggerMixin):
                     line_number += 1
                     word_columns = word_line.split("\t")
                     if len(word_columns) != 10:
-                        raise CoNNLEvaluator.UDError(
+                        raise CoNLLEvaluationScript.UDError(
                             f"The CoNLL-U line does not contain "
                             f"10 tab-separated columns: '{word_line}'"
                         )
 
                     ud.words.append(
-                        CoNNLEvaluator.UDWord(ud.tokens[-1], word_columns,
-                                              is_multiword=True))
+                        CoNLLEvaluationScript.UDWord(ud.tokens[-1], word_columns,
+                                                     is_multiword=True))
             # Basic tokens/words
             else:
                 try:
                     word_id = int(columns[ID])
                 except:
-                    raise CoNNLEvaluator.UDError(
+                    raise CoNLLEvaluationScript.UDError(
                         "Cannot parse word ID '{}'".format(columns[ID]))
                 if word_id != len(ud.words) - sentence_start + 1:
-                    raise CoNNLEvaluator.UDError(
+                    raise CoNLLEvaluationScript.UDError(
                         f"Incorrect word ID '{columns[ID]}' "
                         f"for word '{columns[FORM]}', "
                         f"expected '{len(ud.words) - sentence_start + 1}'"
@@ -267,17 +267,17 @@ class CoNNLEvaluator(LoggerMixin):
                 try:
                     head_id = int(columns[HEAD])
                 except:
-                    raise CoNNLEvaluator.UDError(
+                    raise CoNLLEvaluationScript.UDError(
                         "Cannot parse HEAD '{}'".format(columns[HEAD]))
                 if head_id < 0:
-                    raise CoNNLEvaluator.UDError("HEAD cannot be negative")
+                    raise CoNLLEvaluationScript.UDError("HEAD cannot be negative")
 
                 ud.words.append(
-                    CoNNLEvaluator.UDWord(ud.tokens[-1], columns,
-                                          is_multiword=False))
+                    CoNLLEvaluationScript.UDWord(ud.tokens[-1], columns,
+                                                 is_multiword=False))
 
         if sentence_start is not None:
-            raise CoNNLEvaluator.UDError(
+            raise CoNLLEvaluationScript.UDError(
                 "The CoNLL-U file does not end with empty line")
 
         return ud
@@ -295,7 +295,7 @@ class CoNNLEvaluator(LoggerMixin):
                 si += 1
                 gi += 1
 
-        return CoNNLEvaluator.Score(len(gold_spans), len(system_spans), correct)
+        return CoNLLEvaluationScript.Score(len(gold_spans), len(system_spans), correct)
 
     @staticmethod
     def alignment_score(alignment, key_fn, weight_fn=lambda w: 1):
@@ -312,14 +312,14 @@ class CoNNLEvaluator(LoggerMixin):
 
         if key_fn is None:
             # Return score for whole aligned words
-            return CoNNLEvaluator.Score(gold, system, aligned)
+            return CoNLLEvaluationScript.Score(gold, system, aligned)
 
         for words in alignment.matched_words:
             if key_fn(words.gold_word, words.gold_parent) == key_fn(
                     words.system_word, words.system_parent_gold_aligned):
                 correct += weight_fn(words.gold_word)
 
-        return CoNNLEvaluator.Score(gold, system, correct, aligned)
+        return CoNLLEvaluationScript.Score(gold, system, correct, aligned)
 
     @staticmethod
     def beyond_end(words, i, multiword_span_end):
@@ -388,7 +388,7 @@ class CoNNLEvaluator(LoggerMixin):
         return lcs
 
     def align_words(self, gold_words, system_words):
-        alignment = CoNNLEvaluator.Alignment(gold_words, system_words)
+        alignment = CoNLLEvaluationScript.Alignment(gold_words, system_words)
 
         gi, si = 0, 0
         while gi < len(gold_words) and si < len(system_words):
@@ -471,7 +471,4 @@ class CoNNLEvaluator(LoggerMixin):
 
             self.logger.info(f"Wrote predicted treebank to '{file_name}'.")
 
-        return {
-            "LAS": scores["LAS"].f1 * 100,
-            "UAS": scores["UAS"].f1 * 100
-        }
+        return scores["LAS"].f1 * 100, scores["UAS"].f1 * 100

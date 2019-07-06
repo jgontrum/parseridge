@@ -2,12 +2,13 @@ import torch
 
 from torch.optim import Adam
 
+from parseridge.parser.modules.data_parallel import Module
 from parseridge.utils.logger import LoggerMixin
 
 
 class Trainer(LoggerMixin):
 
-    def __init__(self, model, learning_rate=1e-3, weight_decay=0.00, loss_factor=0.75,
+    def __init__(self, model:Module, learning_rate=1e-3, weight_decay=0.00, loss_factor=0.75,
                  update_size=50, gradient_clipping=10, mode="avg"):
 
         self.supported_modes = ["avg", "sum"]

@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 import numpy as np
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -17,7 +16,7 @@ from parseridge.parser.loss import Criterion
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.modules.utils import pad_tensor_list
 from parseridge.parser.trainer import Trainer
-from parseridge.utils.evaluate import CoNNLEvaluator
+from parseridge.parser.evaluation.conll_eval import CoNLLEvaluationScript
 from parseridge.utils.helpers import T, Metric
 from parseridge.utils.logger import LoggerMixin
 from parseridge.utils.report import get_reporter
@@ -133,7 +132,7 @@ class Parseridge(LoggerMixin):
                 )
 
                 # Evaluate on training corpus
-                train_scores = CoNNLEvaluator().get_las_score_for_sentences(
+                train_scores = CoNLLEvaluationScript().get_las_score_for_sentences(
                     *self.predict(train_corpus, batch_size=pred_batch_size))
                 self.logger.info(
                     f"Performance on the training set after {epoch + 1} epochs: "
@@ -142,7 +141,7 @@ class Parseridge(LoggerMixin):
                 )
 
                 # Evaluate on dev corpus
-                dev_scores = CoNNLEvaluator().get_las_score_for_sentences(
+                dev_scores = CoNLLEvaluationScript().get_las_score_for_sentences(
                     *self.predict(dev_corpus, batch_size=pred_batch_size))
 
                 self.logger.info(
