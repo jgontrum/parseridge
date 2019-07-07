@@ -2,13 +2,15 @@ from typing import List, Tuple, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import initialize_xavier_dynet_
+from parseridge.parser.modules.utils import initialize_xavier_dynet_, \
+    lookup_tensors_for_indices, mask_, pad_tensor_list
 
 
 class BaselineModel(Module):
@@ -106,31 +108,32 @@ class BaselineModel(Module):
         self._mlp_padding = nn.Tanh()(self._mlp_padding_param)
 
     def get_contextualized_input(self,
-                                 token_sequences: torch.Tensor,
-                                 sentence_lengths: torch.Tensor) -> torch.Tensor:
+                                 token_sequences: Tensor,
+                                 sentence_lengths: Tensor) -> Tensor:
         outputs, _ = self.input_encoder(token_sequences, sentence_lengths)
         return outputs
 
     def compute_mlp_output(self,
-                           contextualized_input_batch: List[torch.Tensor],
-                           stacks: torch.Tensor,
-                           buffers: torch.Tensor,
-                           stack_lengths: Optional[torch.Tensor] = None,
-                           buffer_lengths: Optional[torch.Tensor] = None
-                           ) -> Tuple[torch.Tensor, torch.Tensor]:
+                           contextualized_input_batch: Tensor,
+                           stacks: Tensor,
+                           buffers: Tensor,
+                           stack_lengths: Tensor,
+                           buffer_lengths: Tensor,
+                           ) -> Tuple[Tensor, Tensor]:
 
-        stack_batch = self._get_tensor_for_indices(
-            indices_batch=[stack[-self.stack_size:] for stack in stacks],
+        # Lookup the contextualized tokens from the indices
+        stack_batch = self._get_padded_tensors_for_indices(
+            indices=stacks,
+            lengths=stack_lengths,
             contextualized_input_batch=contextualized_input_batch,
-            padding=self._mlp_padding,
-            size=self.stack_size
+            max_length=self.stack_size
         )
 
-        buffer_batch = self._get_tensor_for_indices(
-            indices_batch=[buffer[:self.buffer_size] for buffer in buffers],
+        buffer_batch = self._get_padded_tensors_for_indices(
+            indices=buffers,
+            lengths=buffer_lengths,
             contextualized_input_batch=contextualized_input_batch,
-            padding=self._mlp_padding,
-            size=self.buffer_size
+            max_length=self.buffer_size
         )
 
         mlp_input = torch.cat((stack_batch, buffer_batch), dim=1)
@@ -140,37 +143,48 @@ class BaselineModel(Module):
 
         return transitions_output, relations_output
 
-    @staticmethod
-    def _get_tensor_for_indices(
-            indices_batch,
-            contextualized_input_batch: torch.Tensor,
-            padding: torch.Tensor,
-            size: int) -> torch.Tensor:
-        batch = []
-        for index_list, contextualized in zip(indices_batch, contextualized_input_batch):
-            items = [contextualized[i] for i in index_list]
-            while len(items) < size:
-                items.append(padding)
+    def _get_padded_tensors_for_indices(self, indices: Tensor, lengths: Tensor,
+                                        contextualized_input_batch: Tensor, max_length:int):
+        indices = pad_tensor_list(indices, length=max_length)
+        # Lookup the contextualized tokens from the indices
+        batch = lookup_tensors_for_indices(indices, contextualized_input_batch)
 
-            # Turn list of tensors into one tensor
-            items = torch.stack(items)
+        batch_size = batch.size(0)
+        sequence_size = max(batch.size(1), max_length)
+        token_size = batch.size(2)
 
-            # Flatten the tensor
-            items = items.view((-1,)).contiguous()
+        # Expand the padding vector over the size of the batch
+        padding_batch = self._mlp_padding.expand(batch_size, sequence_size, token_size)
 
-            batch.append(items)
+        if max(lengths) == 0:
+            # If the batch is completely empty, we can just return the whole padding batch
+            batch_padded = padding_batch
+        else:
+            # Build a mask and expand it over the size of the batch
+            mask = torch.arange(sequence_size)[None, :] < lengths[:, None]
+            mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
 
-        return torch.stack(batch).contiguous()
+            batch_padded = torch.where(
+                mask,  # Condition
+                batch,  # If condition is 1
+                padding_batch  # If condition is 0
+            )
+
+            # Cut the tensor at the specified length
+            batch_padded = torch.split(batch_padded, max_length, dim=1)[0]
+
+        # Flatten the output by concatenating the token embeddings
+        return batch_padded.contiguous().view(batch_padded.size(0), -1)
 
     def forward(self,
-                stacks: torch.Tensor,
-                buffers: torch.Tensor,
-                stack_lengths: Optional[torch.Tensor] = None,
-                buffer_lengths: Optional[torch.Tensor] = None,
-                token_sequences: Optional[torch.Tensor] = None,
-                sentence_lengths: Optional[torch.Tensor] = None,
-                contextualized_input_batch: Optional[List[torch.Tensor]] = None
-                ) -> Tuple[torch.Tensor, torch.Tensor]:
+                stacks: Tensor,
+                buffers: Tensor,
+                stack_lengths: Optional[Tensor] = None,
+                buffer_lengths: Optional[Tensor] = None,
+                token_sequences: Optional[Tensor] = None,
+                sentence_lengths: Optional[Tensor] = None,
+                contextualized_input_batch: Optional[List[Tensor]] = None
+                ) -> Tuple[Tensor, Tensor]:
 
         if contextualized_input_batch is None:
             assert token_sequences is not None

@@ -88,8 +88,11 @@ def pad_tensor(tensor, length, padding=0):
     return pad(tensor, [0, length - tensor_length], value=padding)
 
 
-def pad_tensor_list(tensors, padding=0):
+def pad_tensor_list(tensors, padding=0, length=None):
     max_length = max([len(tensor) for tensor in tensors])
+    if max_length is not None:
+        max_length = max(max_length, length)
+
     padded_tensors = [
         pad_tensor(tensor, length=max_length, padding=padding) for tensor in tensors
     ]

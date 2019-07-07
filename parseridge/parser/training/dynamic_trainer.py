@@ -175,14 +175,16 @@ class DynamicTrainer(Trainer):
         :return: Updated Configurations
         """
 
-        padded_stacks = pad_list_of_lists([c.stack for c in configurations])
+        contextualized_inputs = [c.contextualized_input for c in configurations]
+
+        padded_stacks = pad_list_of_lists([list(reversed(c.stack)) for c in configurations])
         padded_buffers = pad_list_of_lists([c.buffer for c in configurations])
 
         stack_len = [len(c.stack) for c in configurations]
         buffer_len = [len(c.buffer) for c in configurations]
 
         clf_transitions, clf_labels = model.compute_mlp_output(
-            contextualized_input_batch=[c.contextualized_input for c in configurations],
+            contextualized_input_batch=torch.stack(contextualized_inputs),
             stacks=to_int_tensor(padded_stacks, device=model.device),
             stack_lengths=to_int_tensor(stack_len, device=model.device),
             buffers=to_int_tensor(padded_buffers, device=model.device),
