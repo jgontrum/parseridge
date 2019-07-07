@@ -68,11 +68,7 @@ def unfreeze(module):
 
 def pad_list(sequence: List, length: int, padding: Any):
     assert len(sequence) <= length
-
-    while len(sequence) < length:
-        sequence.append(padding)
-
-    return sequence
+    return sequence + (length - len(sequence)) * [padding]
 
 
 def pad_list_of_lists(sequences: List[List], padding: Any = 0):
