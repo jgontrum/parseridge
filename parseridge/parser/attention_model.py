@@ -5,13 +5,16 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.modules.attention.universal_attention import UniversalAttention, \
+    LinearAttention
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import initialize_xavier_dynet_
+from parseridge.parser.modules.utils import initialize_xavier_dynet_, \
+    lookup_tensors_for_indices
 
 
-class BaselineModel(Module):
+class AttentionModel(Module):
 
     def __init__(self,
                  relations: Relations,
@@ -58,6 +61,7 @@ class BaselineModel(Module):
 
         """ Module definitions """
 
+        """RNN that encodes the input sentence."""
         self.input_encoder = InputEncoder(
             token_vocabulary=vocabulary,
             token_embedding_size=embedding_size,
@@ -70,10 +74,24 @@ class BaselineModel(Module):
             device=device
         )
 
-        self.mlp_in_size = (
-                (self.stack_size + self.buffer_size) *
-                self.input_encoder.output_size
+        """Computes attention over the output of the input encoder given the state of the
+        action encoder. """
+        self.stack_attention = UniversalAttention(
+            query_dim=self.input_encoder.output_size,
+            similarity="learned",
+            normalization="softmax",
+            device=device
         )
+
+        self.buffer_attention = UniversalAttention(
+            query_dim=self.input_encoder.output_size,
+            similarity="learned",
+            normalization="softmax",
+            device=device
+        )
+
+        self.mlp_in_size = (
+                self.buffer_attention.output_size + self.stack_attention.output_size)
 
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
@@ -112,61 +130,40 @@ class BaselineModel(Module):
         return outputs
 
     def compute_mlp_output(self,
-                           contextualized_input_batch: List[torch.Tensor],
+                           contextualized_input_batch: torch.Tensor,
                            stacks: torch.Tensor,
+                           stack_lengths: torch.Tensor,
                            buffers: torch.Tensor,
-                           stack_lengths: Optional[torch.Tensor] = None,
-                           buffer_lengths: Optional[torch.Tensor] = None
+                           buffer_lengths: torch.Tensor
                            ) -> Tuple[torch.Tensor, torch.Tensor]:
+        stacks = lookup_tensors_for_indices(stacks, contextualized_input_batch)
+        buffers = lookup_tensors_for_indices(buffers, contextualized_input_batch)
 
-        stack_batch = self._get_tensor_for_indices(
-            indices_batch=[stack[-self.stack_size:] for stack in stacks],
-            contextualized_input_batch=contextualized_input_batch,
-            padding=self._mlp_padding,
-            size=self.stack_size
+        # Compute a representation of the stack / buffer as an weighted average based
+        # on the attention weights.
+        stack_batch_attention, _, stack_attention_energies = self.stack_attention(
+            keys=stacks,
+            sequence_lengths=stack_lengths
         )
 
-        buffer_batch = self._get_tensor_for_indices(
-            indices_batch=[buffer[:self.buffer_size] for buffer in buffers],
-            contextualized_input_batch=contextualized_input_batch,
-            padding=self._mlp_padding,
-            size=self.buffer_size
+        buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
+            keys=buffers,
+            sequence_lengths=buffer_lengths
         )
 
-        mlp_input = torch.cat((stack_batch, buffer_batch), dim=1)
+        mlp_input = torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 
+        # Use output and feed it into MLP
         transitions_output = self.transition_mlp(mlp_input)
         relations_output = self.relation_mlp(mlp_input)
 
         return transitions_output, relations_output
 
-    @staticmethod
-    def _get_tensor_for_indices(
-            indices_batch,
-            contextualized_input_batch: torch.Tensor,
-            padding: torch.Tensor,
-            size: int) -> torch.Tensor:
-        batch = []
-        for index_list, contextualized in zip(indices_batch, contextualized_input_batch):
-            items = [contextualized[i] for i in index_list]
-            while len(items) < size:
-                items.append(padding)
-
-            # Turn list of tensors into one tensor
-            items = torch.stack(items)
-
-            # Flatten the tensor
-            items = items.view((-1,)).contiguous()
-
-            batch.append(items)
-
-        return torch.stack(batch).contiguous()
-
     def forward(self,
                 stacks: torch.Tensor,
+                stack_lengths: torch.Tensor,
                 buffers: torch.Tensor,
-                stack_lengths: Optional[torch.Tensor] = None,
-                buffer_lengths: Optional[torch.Tensor] = None,
+                buffer_lengths: torch.Tensor,
                 token_sequences: Optional[torch.Tensor] = None,
                 sentence_lengths: Optional[torch.Tensor] = None,
                 contextualized_input_batch: Optional[List[torch.Tensor]] = None

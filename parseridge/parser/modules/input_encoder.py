@@ -4,7 +4,6 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.positional_embeddings import PositionalEmbeddings
 
 
 class InputEncoder(Module):
@@ -30,14 +29,14 @@ class InputEncoder(Module):
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
         )
 
-        if self.positional_embedding_size:
-            self.position_embeddings = PositionalEmbeddings(
-                embedding_size=self.positional_embedding_size,
-                max_length=self.max_sentence_length,
-                device=self.device
-            )
-
-            self.output_size += self.positional_embedding_size
+        # if self.positional_embedding_size:
+        #     self.position_embeddings = PositionalEmbeddings(
+        #         embedding_size=self.positional_embedding_size,
+        #         max_length=self.max_sentence_length,
+        #         device=self.device
+        #     )
+        #
+        #     self.output_size += self.positional_embedding_size
 
         # TODO Add other feature embeddings here
         self.rnn = nn.LSTM(

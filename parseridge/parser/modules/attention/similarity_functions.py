@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import torch
 from torch import nn
@@ -9,8 +10,9 @@ from parseridge.parser.modules.utils import initialize_xavier_dynet_
 
 class DotSimilarity(Module):
 
-    def __init__(self, **kwargs):
-        super(DotSimilarity, self).__init__()
+    def __init__(self, key_dim: int, query_dim: Optional[int] = None,
+                 value_dim: Optional[int] = None, bias=False, **kwargs):
+        super().__init__(**kwargs)
 
     def forward(self, queries, keys):
         return torch.matmul(keys, queries.unsqueeze(2))
@@ -18,9 +20,11 @@ class DotSimilarity(Module):
 
 class ScaledDotSimilarity(Module):
 
-    def __init__(self, **kwargs):
-        super(ScaledDotSimilarity, self).__init__()
-        self.dot = DotSimilarity()
+    def __init__(self, key_dim: int, query_dim: Optional[int] = None,
+                 value_dim: Optional[int] = None, bias=False, **kwargs):
+        super().__init__(**kwargs)
+        self.dot = DotSimilarity(
+            key_dim=key_dim, query_dim=query_dim, value_dim=value_dim, bias=bias)
 
     def forward(self, queries, keys):
         return self.dot(queries, keys) / math.sqrt(keys.size(2))
@@ -28,9 +32,9 @@ class ScaledDotSimilarity(Module):
 
 class ConcatSimilarity(Module):
 
-    def __init__(self, query_dim: int, key_dim: int = None, hidden_dim: int = None,
-                 bias=False, **kwargs):
-        super(ConcatSimilarity, self).__init__()
+    def __init__(self, key_dim: int, hidden_dim: int, query_dim: Optional[int] = None,
+                 value_dim: Optional[int] = None, bias=False, **kwargs):
+        super().__init__(**kwargs)
         # This is the similarity function proposed by Bahdanau et al. (2014),
         # but simplified by Luong et al. (2015) and requires two weight matrices
         # that are learned during training.
@@ -51,8 +55,9 @@ class ConcatSimilarity(Module):
 
 class GeneralSimilarity(Module):
 
-    def __init__(self, query_dim: int, key_dim: int = None, bias=False, **kwargs):
-        super(GeneralSimilarity, self).__init__()
+    def __init__(self, key_dim: int, query_dim: Optional[int] = None,
+                 value_dim: Optional[int] = None, bias=False, **kwargs):
+        super().__init__(**kwargs)
         # See Luong et al. (2015)
 
         key_dim = key_dim if key_dim else query_dim
@@ -64,3 +69,21 @@ class GeneralSimilarity(Module):
 
     def forward(self, queries, keys):
         return self.dot(queries, self.param_W(keys))
+
+
+class LearnedSimilarity(Module):
+
+    def __init__(self, key_dim: int, query_dim: Optional[int] = None,
+                 value_dim: Optional[int] = None, bias=True, **kwargs):
+        super().__init__(**kwargs)
+
+        self.weights = nn.Linear(
+            in_features=key_dim,
+            out_features=1,
+            bias=bias
+        )
+
+        initialize_xavier_dynet_(self)
+
+    def forward(self, _, keys):
+        return self.weights(keys)

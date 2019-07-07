@@ -3,7 +3,7 @@ import torch
 
 from parseridge.corpus.corpus import CorpusIterator
 from parseridge.corpus.treebank import Treebank
-from parseridge.parser.model import ParseridgeModel
+from parseridge.parser.attention_model import AttentionModel
 from parseridge.utils.helpers import set_seed
 from test_parseridge.utils import log_stderr, get_fixtures_path
 
@@ -41,7 +41,7 @@ class TestParseProjective:
         cls.vocabulary = treebank.vocabulary
         cls.relations = treebank.relations
 
-        cls.model = ParseridgeModel(
+        cls.model = AttentionModel(
             relations=cls.relations,
             vocabulary=cls.vocabulary,
             embedding_size=cls.embedding_size,
@@ -66,7 +66,7 @@ class TestParseProjective:
             []
         ]
 
-        output = ParseridgeModel.lookup_tensors_for_indices(
+        output = AttentionModel.lookup_tensors_for_indices(
             indices_batch=stacks,
             sequence_batch=sentence_batch,
             padding=padding,
@@ -121,7 +121,7 @@ class TestParseProjective:
             []
         ]
 
-        stack_batch = ParseridgeModel.lookup_tensors_for_indices(
+        stack_batch = AttentionModel.lookup_tensors_for_indices(
             indices_batch=stacks,
             sequence_batch=sentence_batch,
             padding=padding,
@@ -134,14 +134,14 @@ class TestParseProjective:
             []
         ]
 
-        buffer_batch = ParseridgeModel.lookup_tensors_for_indices(
+        buffer_batch = AttentionModel.lookup_tensors_for_indices(
             indices_batch=buffers,
             sequence_batch=sentence_batch,
             padding=padding,
             size=buffer_size
         )
 
-        output = ParseridgeModel._concatenate_stack_and_buffer(stack_batch, buffer_batch)
+        output = AttentionModel._concatenate_stack_and_buffer(stack_batch, buffer_batch)
 
         assert [int(n) for n in output.size()] == \
                [batch_size, (stack_size + buffer_size) * embedding_size]

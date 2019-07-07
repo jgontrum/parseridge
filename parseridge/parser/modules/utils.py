@@ -1,4 +1,5 @@
 import math
+from typing import Any, List
 
 import torch
 from torch import nn
@@ -65,13 +66,21 @@ def unfreeze(module):
         param.requires_grad = True
 
 
-def add_padding(sequence, length, padding_item):
+def pad_list(sequence: List, length: int, padding: Any):
     assert len(sequence) <= length
 
     while len(sequence) < length:
-        sequence.append(padding_item)
+        sequence.append(padding)
 
     return sequence
+
+
+def pad_list_of_lists(sequences: List[List], padding: Any = 0):
+    max_length = max([len(sequence) for sequence in sequences])
+
+    return [
+        pad_list(sequence, length=max_length, padding=padding) for sequence in sequences
+    ]
 
 
 def pad_tensor(tensor, length, padding=0):
@@ -110,15 +119,26 @@ def create_mask(lengths, max_len=None, device="cpu"):
 
 
 def lookup_tensors_for_indices(indices_batch, sequence_batch):
-    batch = []
-    for index_list, lstm_out in zip(indices_batch, sequence_batch):
-        items = torch.index_select(lstm_out, dim=0, index=index_list)
-        batch.append(items)
+    return torch.stack([
+        torch.index_select(batch, dim=0, index=indices)
+        for batch, indices in zip(sequence_batch, indices_batch)
+    ])
 
-    return torch.stack(batch).contiguous()
 
 def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):
-  max_len = batch.size(1)
-  mask = torch.arange(max_len, device=device)[None, :] < lengths[:, None]
-  batch[~mask] = masked_value
-  return batch
+    max_len = batch.size(1)
+    mask = torch.arange(max_len, device=device)[None, :] < lengths[:, None]
+    batch[~mask] = masked_value
+    return batch
+
+
+def to_int_tensor(data: Any, device="cpu"):
+    return torch.tensor(data, dtype=torch.int64, device=device)
+
+
+def to_byte_tensor(data: Any, device="cpu"):
+    return torch.tensor(data, dtype=torch.uint8, device=device)
+
+
+def to_float_tensor(data: Any, device="cpu"):
+    return torch.tensor(data, dtype=torch.float32, device=device)

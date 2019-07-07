@@ -4,6 +4,8 @@ import torch
 
 from parseridge.corpus.corpus import CorpusIterator, Corpus
 from parseridge.parser.configuration import Configuration
+from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.utils import pad_list_of_lists, to_int_tensor
 from parseridge.parser.training.base_trainer import Trainer
 from parseridge.parser.training.callbacks.base_callback import StopEpoch, StopTraining
 from parseridge.parser.training.hyperparameters import Hyperparameters
@@ -98,8 +100,14 @@ class DynamicTrainer(Trainer):
         # Run the sentence through the encoder to get the outputs.
         # These outputs will stay the same for the sentence,
         # so we compute them once in the beginning.
+        token_sequences = sentence_features[:, 0, :]
+
+        sentence_lengths = to_int_tensor(
+            data=[len(sentence) for sentence in sentences], device=self.model.device
+        )
+
         contextualized_tokens_batch = self.model.get_contextualized_input(
-            sentences, sentence_features
+            token_sequences, sentence_lengths
         )
 
         # Create the initial configurations for all sentences in the batch
@@ -158,7 +166,7 @@ class DynamicTrainer(Trainer):
         return loss
 
     @staticmethod
-    def predict_logits(configurations, model):
+    def predict_logits(configurations: List[Configuration], model: Module):
         """
         Wraps the stacks, buffers and contextualized token data of all
         given configurations into a tensor which is then passed through
@@ -166,10 +174,19 @@ class DynamicTrainer(Trainer):
         :param configurations: List of not finished Configurations
         :return: Updated Configurations
         """
+
+        padded_stacks = pad_list_of_lists([c.stack for c in configurations])
+        padded_buffers = pad_list_of_lists([c.buffer for c in configurations])
+
+        stack_len = [len(c.stack) for c in configurations]
+        buffer_len = [len(c.buffer) for c in configurations]
+
         clf_transitions, clf_labels = model.compute_mlp_output(
-            [c.contextualized_input for c in configurations],
-            [c.stack for c in configurations],
-            [c.buffer for c in configurations]
+            contextualized_input_batch=[c.contextualized_input for c in configurations],
+            stacks=to_int_tensor(padded_stacks, device=model.device),
+            stack_lengths=to_int_tensor(stack_len, device=model.device),
+            buffers=to_int_tensor(padded_buffers, device=model.device),
+            buffer_lengths=to_int_tensor(buffer_len, device=model.device)
         )
 
         # Isolate the columns for the transitions

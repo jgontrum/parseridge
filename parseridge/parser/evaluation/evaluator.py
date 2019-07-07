@@ -102,8 +102,16 @@ class Evaluator(LoggerMixin):
 
         sentence_features, sentences = batch
 
+        token_sequences = sentence_features[:, 0, :]
+
+        sentence_lengths = torch.tensor(
+            data=[len(sentence) for sentence in sentences],
+            dtype=torch.int64,
+            device=self.model.device
+        )
+
         contextualized_tokens_batch = self.model.get_contextualized_input(
-            sentences, sentence_features
+            token_sequences, sentence_lengths
         )
 
         configurations = [

@@ -2,7 +2,7 @@ from copy import deepcopy
 
 from parseridge.corpus.treebank import Treebank
 from parseridge.parser.configuration import Configuration
-from parseridge.parser.model import ParseridgeModel
+from parseridge.parser.attention_model import AttentionModel
 from parseridge.utils.helpers import Action, T
 from test_parseridge.utils import get_fixtures_path, log_stderr, \
     sentences_are_equal, generate_actions
@@ -23,7 +23,7 @@ class TestParseProjective:
         cls.vocabulary = treebank.vocabulary
         cls.relations = treebank.relations
 
-        cls.model = ParseridgeModel(
+        cls.model = AttentionModel(
             relations=cls.relations,
             vocabulary=cls.vocabulary
         )

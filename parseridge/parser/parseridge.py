@@ -13,7 +13,7 @@ from parseridge.corpus.training_data import ConLLDataset
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.loss import Criterion
-from parseridge.parser.model import ParseridgeModel
+from parseridge.parser.attention_model import AttentionModel
 from parseridge.parser.modules.utils import pad_tensor_list
 from parseridge.parser.trainer import Trainer
 from parseridge.parser.evaluation.conll_eval import CoNLLEvaluationScript
@@ -86,7 +86,7 @@ class Parseridge(LoggerMixin):
 
         vocabulary.read_only()
 
-        self.model = ParseridgeModel(
+        self.model = AttentionModel(
             relations=relations,
             vocabulary=vocabulary,
             num_stack=num_stack,
