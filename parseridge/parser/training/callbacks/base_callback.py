@@ -4,6 +4,14 @@ from typing import Any
 from parseridge.utils.logger import LoggerMixin
 
 
+class StopEpoch(Exception):
+    pass
+
+
+class StopTraining(Exception):
+    pass
+
+
 class Callback(LoggerMixin, ABC):
     """
     Base class for callbacks that want to record values,

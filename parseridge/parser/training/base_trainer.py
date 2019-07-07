@@ -29,6 +29,8 @@ class Trainer(LoggerMixin, ABC):
 
         self.callback_handler.register_callback(ModelTrainingCallback())
 
+        self.last_epoch = 0
+
     @abstractmethod
     def fit(self, epochs: int):
         pass

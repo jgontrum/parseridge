@@ -5,6 +5,7 @@ import torch
 from parseridge.corpus.corpus import CorpusIterator, Corpus
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.training.base_trainer import Trainer
+from parseridge.parser.training.callbacks.base_callback import StopEpoch, StopTraining
 from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.utils.helpers import T
 
@@ -14,32 +15,26 @@ class DynamicTrainer(Trainer):
     The default trainer.
     """
 
-    def fit(self, epochs: int, training_data: Corpus,
-            hyper_parameters: Hyperparameters = None,
-            **kwargs) -> None:
-        hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
+    def _run_epoch(self, epoch: int, training_data: Corpus,
+                   hyper_parameters: Hyperparameters):
+        iterator = CorpusIterator(
+            training_data,
+            batch_size=hyper_parameters.batch_size,
+            shuffle=True,
+            train=True,
+            oov_probability=hyper_parameters.oov_probability,
+            group_by_length=True,
+            token_dropout=hyper_parameters.token_dropout
+        )
 
-        self.callback_handler.on_train_begin(epochs=epochs,
-                                             hyper_parameters=hyper_parameters)
+        self.callback_handler.on_epoch_begin(
+            epoch=epoch, num_batches=len(iterator), training_data=training_data)
 
-        for epoch in range(1, epochs + 1):
-            iterator = CorpusIterator(
-                training_data,
-                batch_size=hyper_parameters.batch_size,
-                shuffle=True,
-                train=True,
-                oov_probability=hyper_parameters.oov_probability,
-                group_by_length=True,
-                token_dropout=hyper_parameters.token_dropout
-            )
+        loss = []
+        epoch_loss = 0
 
-            self.callback_handler.on_epoch_begin(
-                epoch=epoch, num_batches=len(iterator), training_data=training_data)
-
-            loss = []
-            epoch_loss = 0
-
-            for i, batch in enumerate(iterator):
+        for i, batch in enumerate(iterator):
+            try:
                 self.callback_handler.on_batch_begin(batch=i, batch_data=batch)
 
                 current_loss = self._process_training_batch(
@@ -61,10 +56,32 @@ class DynamicTrainer(Trainer):
                 else:
                     batch_loss = None
 
+                self.last_epoch = epoch
+
                 self.callback_handler.on_batch_end(
                     batch=i, batch_data=batch, batch_loss=batch_loss)
+            except StopEpoch:
+                self.logger.info(f"Stopping epoch after {i}/{len(iterator)} batches.")
+                break
 
-            self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
+        self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
+
+    def fit(self, epochs: int, training_data: Corpus,
+            hyper_parameters: Hyperparameters = None,
+            **kwargs) -> None:
+        hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
+
+        initial_epoch = self.last_epoch
+
+        self.callback_handler.on_train_begin(
+            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters)
+
+        for epoch in range(initial_epoch + 1, epochs + initial_epoch + 1):
+            try:
+                self._run_epoch(epoch, training_data, hyper_parameters)
+            except StopTraining:
+                self.logger.info(f"Stopping training after {epoch} epochs.")
+                break
 
         self.callback_handler.on_train_end()
 

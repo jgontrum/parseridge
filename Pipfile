@@ -15,6 +15,12 @@ pygsheets = "*"
 pytest = "*"
 pytest-cov = "*"
 jupyter = "*"
+matplotlib = "*"
+seaborn = "*"
+pandas = "*"
+isort = "*"
+autopep8 = "*"
+jupyter = "*"
 
 [requires]
 python_version = "3.7.3"
