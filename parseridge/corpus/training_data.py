@@ -1,10 +1,11 @@
 from copy import deepcopy
+from dataclasses import dataclass
 from random import random, choice, shuffle
 from typing import NamedTuple
 
 import torch
 from torch.utils.data import Dataset as PyTorchDataset
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.modules.utils import pad_tensor
@@ -13,7 +14,8 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class ConfigurationGenerator(LoggerMixin):
-    class ConfigurationItem(NamedTuple):
+    @dataclass
+    class ConfigurationItem:
         sentence: torch.Tensor
         stack: torch.Tensor
         buffer: torch.Tensor

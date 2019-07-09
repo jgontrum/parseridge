@@ -52,6 +52,10 @@ class Transition(Enum):
     SHIFT = 0
     SWAP = 1
 
+    @staticmethod
+    def get_item(id_: int) -> str:
+        return ["SHIFT", "SWAP", "LEFT_ARC", "RIGHT_ARC"][id_]
+
 
 T = Transition  # Shortcut to make the code less verbose
 
