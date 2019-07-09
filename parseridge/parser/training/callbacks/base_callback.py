@@ -17,6 +17,7 @@ class Callback(LoggerMixin, ABC):
     Base class for callbacks that want to record values,
     dynamically change learner params, etc.
     """
+
     _order = 0
 
     def on_train_begin(self, **kwargs: Any) -> None:

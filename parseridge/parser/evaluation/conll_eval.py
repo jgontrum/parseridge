@@ -50,22 +50,25 @@ class CoNLLEvaluationScript(LoggerMixin):
             self.parent = None
 
             # Let's ignore language-specific deprel subtypes.
-            self.columns[DEPREL] = columns[DEPREL].split(':')[0]
+            self.columns[DEPREL] = columns[DEPREL].split(":")[0]
 
     class UDError(Exception):
         pass
 
     class Score:
-        def __init__(self, gold_total, system_total, correct,
-                     aligned_total=None):
+        def __init__(self, gold_total, system_total, correct, aligned_total=None):
             self.precision = correct / system_total if system_total else 0.0
             self.recall = correct / gold_total if gold_total else 0.0
 
-            self.f1 = 2 * correct / (system_total + gold_total) \
-                if system_total + gold_total else 0.0
+            self.f1 = (
+                2 * correct / (system_total + gold_total)
+                if system_total + gold_total
+                else 0.0
+            )
 
-            self.aligned_accuracy = correct / aligned_total \
-                if aligned_total else aligned_total
+            self.aligned_accuracy = (
+                correct / aligned_total if aligned_total else aligned_total
+            )
 
     class AlignmentWord:
         def __init__(self, gold_word, system_word):
@@ -83,7 +86,8 @@ class CoNLLEvaluationScript(LoggerMixin):
 
         def append_aligned_words(self, gold_word, system_word):
             self.matched_words.append(
-                CoNLLEvaluationScript.AlignmentWord(gold_word, system_word))
+                CoNLLEvaluationScript.AlignmentWord(gold_word, system_word)
+            )
             self.matched_words_map[system_word] = gold_word
 
         def fill_parents(self):
@@ -95,12 +99,14 @@ class CoNLLEvaluationScript(LoggerMixin):
             no gold words is aligned to the parent.
             """
             for words in self.matched_words:
-                words.gold_parent = words.gold_word.parent \
-                    if words.gold_word.parent is not None else 0
+                words.gold_parent = (
+                    words.gold_word.parent if words.gold_word.parent is not None else 0
+                )
 
                 words.system_parent_gold_aligned = (
                     self.matched_words_map.get(words.system_word.parent, None)
-                    if words.system_word.parent is not None else 0
+                    if words.system_word.parent is not None
+                    else 0
                 )
 
     def evaluate(self, gold_ud, system_ud, deprel_weights=None):
@@ -112,8 +118,8 @@ class CoNLLEvaluationScript(LoggerMixin):
 
             raise CoNLLEvaluationScript.UDError(
                 f"The concatenation of tokens in the gold file and in "
-                f"th system file differ!\n" +
-                f"First 20 differing characters in gold file: "
+                f"th system file differ!\n"
+                + f"First 20 differing characters in gold file: "
                 f"'{''.join(gold_ud.characters[index:index + 20])}' "
                 f"and system file: "
                 f"'{''.join(system_ud.characters[index:index + 20])}'"
@@ -125,22 +131,20 @@ class CoNLLEvaluationScript(LoggerMixin):
         # Compute the F1-scores
         result = {
             "Tokens": self.spans_score(gold_ud.tokens, system_ud.tokens),
-            "Sentences": self.spans_score(
-                gold_ud.sentences, system_ud.sentences),
+            "Sentences": self.spans_score(gold_ud.sentences, system_ud.sentences),
             "Words": self.alignment_score(alignment, None),
-            "UPOS": self.alignment_score(
-                alignment, lambda w, parent: w.columns[UPOS]),
-            "XPOS": self.alignment_score(
-                alignment, lambda w, parent: w.columns[XPOS]),
-            "Feats": self.alignment_score(
-                alignment, lambda w, parent: w.columns[FEATS]),
-            "AllTags": self.alignment_score(alignment, lambda w, parent: (
-                w.columns[UPOS], w.columns[XPOS], w.columns[FEATS])),
-            "Lemmas": self.alignment_score(
-                alignment, lambda w, parent: w.columns[LEMMA]),
+            "UPOS": self.alignment_score(alignment, lambda w, parent: w.columns[UPOS]),
+            "XPOS": self.alignment_score(alignment, lambda w, parent: w.columns[XPOS]),
+            "Feats": self.alignment_score(alignment, lambda w, parent: w.columns[FEATS]),
+            "AllTags": self.alignment_score(
+                alignment,
+                lambda w, parent: (w.columns[UPOS], w.columns[XPOS], w.columns[FEATS]),
+            ),
+            "Lemmas": self.alignment_score(alignment, lambda w, parent: w.columns[LEMMA]),
             "UAS": self.alignment_score(alignment, lambda w, parent: parent),
             "LAS": self.alignment_score(
-                alignment, lambda w, parent: (parent, w.columns[DEPREL])),
+                alignment, lambda w, parent: (parent, w.columns[DEPREL])
+            ),
         }
 
         return result
@@ -172,7 +176,8 @@ class CoNLLEvaluationScript(LoggerMixin):
                 def process_word(word):
                     if word.parent == "remapping":
                         raise CoNLLEvaluationScript.UDError(
-                            "There is a cycle in a sentence")
+                            "There is a cycle in a sentence"
+                        )
                     if word.parent is None:
                         head = int(word.columns[HEAD])
                         if head > len(ud.words) - sentence_start:
@@ -191,11 +196,12 @@ class CoNLLEvaluationScript(LoggerMixin):
                     process_word(word)
 
                 # Check there is a single root node
-                if len([word for word in ud.words[sentence_start:] if
-                        word.parent is None]) != 1:
+                if (
+                    len([word for word in ud.words[sentence_start:] if word.parent is None])
+                    != 1
+                ):
                     raise CoNLLEvaluationScript.UDError(
-                        f"There are multiple roots in a sentence. "
-                        f"(Line {line_number})."
+                        f"There are multiple roots in a sentence. " f"(Line {line_number})."
                     )
 
                 # End the sentence
@@ -220,22 +226,24 @@ class CoNLLEvaluationScript(LoggerMixin):
             columns[FORM] = columns[FORM].replace(" ", "")
             if not columns[FORM]:
                 raise CoNLLEvaluationScript.UDError(
-                    "There is an empty FORM in the CoNLL-U file")
+                    "There is an empty FORM in the CoNLL-U file"
+                )
 
             # Save token
             ud.characters.extend(columns[FORM])
             ud.tokens.append(
-                CoNLLEvaluationScript.UDSpan(index, index + len(columns[FORM])))
+                CoNLLEvaluationScript.UDSpan(index, index + len(columns[FORM]))
+            )
             index += len(columns[FORM])
 
             # Handle multi-word tokens to save word(s)
             if "-" in columns[ID]:
                 try:
                     start, end = map(int, columns[ID].split("-"))
-                except:
+                except Exception:
                     raise CoNLLEvaluationScript.UDError(
-                        "Cannot parse multi-word token ID '{}'".format(
-                            columns[ID]))
+                        "Cannot parse multi-word token ID '{}'".format(columns[ID])
+                    )
 
                 for _ in range(start, end + 1):
                     word_line = stream.readline().rstrip("\r\n")
@@ -248,15 +256,18 @@ class CoNLLEvaluationScript(LoggerMixin):
                         )
 
                     ud.words.append(
-                        CoNLLEvaluationScript.UDWord(ud.tokens[-1], word_columns,
-                                                     is_multiword=True))
+                        CoNLLEvaluationScript.UDWord(
+                            ud.tokens[-1], word_columns, is_multiword=True
+                        )
+                    )
             # Basic tokens/words
             else:
                 try:
                     word_id = int(columns[ID])
-                except:
+                except Exception:
                     raise CoNLLEvaluationScript.UDError(
-                        "Cannot parse word ID '{}'".format(columns[ID]))
+                        "Cannot parse word ID '{}'".format(columns[ID])
+                    )
                 if word_id != len(ud.words) - sentence_start + 1:
                     raise CoNLLEvaluationScript.UDError(
                         f"Incorrect word ID '{columns[ID]}' "
@@ -266,19 +277,21 @@ class CoNLLEvaluationScript(LoggerMixin):
 
                 try:
                     head_id = int(columns[HEAD])
-                except:
+                except Exception:
                     raise CoNLLEvaluationScript.UDError(
-                        "Cannot parse HEAD '{}'".format(columns[HEAD]))
+                        "Cannot parse HEAD '{}'".format(columns[HEAD])
+                    )
                 if head_id < 0:
                     raise CoNLLEvaluationScript.UDError("HEAD cannot be negative")
 
                 ud.words.append(
-                    CoNLLEvaluationScript.UDWord(ud.tokens[-1], columns,
-                                                 is_multiword=False))
+                    CoNLLEvaluationScript.UDWord(ud.tokens[-1], columns, is_multiword=False)
+                )
 
         if sentence_start is not None:
             raise CoNLLEvaluationScript.UDError(
-                "The CoNLL-U file does not end with empty line")
+                "The CoNLL-U file does not end with empty line"
+            )
 
         return ud
 
@@ -316,7 +329,8 @@ class CoNLLEvaluationScript(LoggerMixin):
 
         for words in alignment.matched_words:
             if key_fn(words.gold_word, words.gold_parent) == key_fn(
-                    words.system_word, words.system_parent_gold_aligned):
+                words.system_word, words.system_parent_gold_aligned
+            ):
                 correct += weight_fn(words.gold_word)
 
         return CoNLLEvaluationScript.Score(gold, system, correct, aligned)
@@ -345,29 +359,33 @@ class CoNLLEvaluationScript(LoggerMixin):
         # Initialize multiword_span_end characters index.
         if gold_words[gi].is_multiword:
             multiword_span_end = gold_words[gi].span.end
-            if not system_words[si].is_multiword and system_words[
-                si].span.start < gold_words[gi].span.start:
+            if (
+                not system_words[si].is_multiword
+                and system_words[si].span.start < gold_words[gi].span.start
+            ):
                 si += 1
         else:  # if system_words[si].is_multiword
             multiword_span_end = system_words[si].span.end
-            if not gold_words[gi].is_multiword and gold_words[
-                gi].span.start < system_words[si].span.start:
+            if (
+                not gold_words[gi].is_multiword
+                and gold_words[gi].span.start < system_words[si].span.start
+            ):
                 gi += 1
         gs, ss = gi, si
 
         # Find the end of the multiword span (so both gi and si are pointing
         # to the word following the multiword span end).
-        while not self.beyond_end(gold_words, gi, multiword_span_end) or \
-                not self.beyond_end(system_words, si, multiword_span_end):
-            if (gi < len(gold_words) and (si >= len(system_words)
-                                          or gold_words[gi].span.start <=
-                                          system_words[si].span.start)):
-                multiword_span_end = self.extend_end(
-                    gold_words[gi], multiword_span_end)
+        while not self.beyond_end(
+            gold_words, gi, multiword_span_end
+        ) or not self.beyond_end(system_words, si, multiword_span_end):
+            if gi < len(gold_words) and (
+                si >= len(system_words)
+                or gold_words[gi].span.start <= system_words[si].span.start
+            ):
+                multiword_span_end = self.extend_end(gold_words[gi], multiword_span_end)
                 gi += 1
             else:
-                multiword_span_end = self.extend_end(
-                    system_words[si], multiword_span_end)
+                multiword_span_end = self.extend_end(system_words[si], multiword_span_end)
                 si += 1
         return gs, ss, gi, si
 
@@ -376,15 +394,15 @@ class CoNLLEvaluationScript(LoggerMixin):
         lcs = [[0] * (si - ss) for i in range(gi - gs)]
         for g in reversed(range(gi - gs)):
             for s in reversed(range(si - ss)):
-                if gold_words[gs + g].columns[FORM].lower() == \
-                        system_words[ss + s].columns[FORM].lower():
+                if (
+                    gold_words[gs + g].columns[FORM].lower()
+                    == system_words[ss + s].columns[FORM].lower()
+                ):
                     lcs[g][s] = 1 + (
-                        lcs[g + 1][s + 1]
-                        if g + 1 < gi - gs and s + 1 < si - ss else 0)
-                lcs[g][s] = max(lcs[g][s],
-                                lcs[g + 1][s] if g + 1 < gi - gs else 0)
-                lcs[g][s] = max(lcs[g][s],
-                                lcs[g][s + 1] if s + 1 < si - ss else 0)
+                        lcs[g + 1][s + 1] if g + 1 < gi - gs and s + 1 < si - ss else 0
+                    )
+                lcs[g][s] = max(lcs[g][s], lcs[g + 1][s] if g + 1 < gi - gs else 0)
+                lcs[g][s] = max(lcs[g][s], lcs[g][s + 1] if s + 1 < si - ss else 0)
         return lcs
 
     def align_words(self, gold_words, system_words):
@@ -393,38 +411,37 @@ class CoNLLEvaluationScript(LoggerMixin):
         gi, si = 0, 0
         while gi < len(gold_words) and si < len(system_words):
             if gold_words[gi].is_multiword or system_words[si].is_multiword:
-                gs, ss, gi, si = self.find_multiword_span(gold_words,
-                                                          system_words, gi, si)
+                gs, ss, gi, si = self.find_multiword_span(gold_words, system_words, gi, si)
 
                 if si > ss and gi > gs:
-                    lcs = self.compute_lcs(gold_words, system_words, gi, si, gs,
-                                           ss)
+                    lcs = self.compute_lcs(gold_words, system_words, gi, si, gs, ss)
 
                     # Store aligned words
                     s, g = 0, 0
                     while g < gi - gs and s < si - ss:
-                        if gold_words[gs + g].columns[FORM].lower() == \
-                                system_words[ss + s].columns[FORM].lower():
+                        if (
+                            gold_words[gs + g].columns[FORM].lower()
+                            == system_words[ss + s].columns[FORM].lower()
+                        ):
                             alignment.append_aligned_words(
-                                gold_words[gs + g], system_words[ss + s])
+                                gold_words[gs + g], system_words[ss + s]
+                            )
                             g += 1
                             s += 1
-                        elif lcs[g][s] == (
-                                lcs[g + 1][s] if g + 1 < gi - gs else 0):
+                        elif lcs[g][s] == (lcs[g + 1][s] if g + 1 < gi - gs else 0):
                             g += 1
                         else:
                             s += 1
             else:
                 # B: No multi-word token => align according to spans.
                 if (gold_words[gi].span.start, gold_words[gi].span.end) == (
-                        system_words[si].span.start,
-                        system_words[si].span.end):
-                    alignment.append_aligned_words(gold_words[gi],
-                                                   system_words[si])
+                    system_words[si].span.start,
+                    system_words[si].span.end,
+                ):
+                    alignment.append_aligned_words(gold_words[gi], system_words[si])
                     gi += 1
                     si += 1
-                elif gold_words[gi].span.start <= system_words[
-                    si].span.start:
+                elif gold_words[gi].span.start <= system_words[si].span.start:
                     gi += 1
                 else:
                     si += 1
@@ -433,8 +450,9 @@ class CoNLLEvaluationScript(LoggerMixin):
 
         return alignment
 
-    def get_las_score_for_sentences(self, gold_sentences, predicted_sentences,
-                                    save_path=None):
+    def get_las_score_for_sentences(
+        self, gold_sentences, predicted_sentences, save_path=None
+    ):
         """
         Takes a list of gold an predicted sentence objects and computes the
         F1 LAS score between them.

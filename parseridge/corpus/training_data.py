@@ -22,8 +22,15 @@ class ConfigurationGenerator(LoggerMixin):
         wrong_transitions: torch.Tensor
         wrong_relations: torch.Tensor
 
-    def __init__(self, vocabulary, relations, oov_probability=0.25,
-                 token_dropout=0.001, error_probability=0.1, device="cpu"):
+    def __init__(
+        self,
+        vocabulary,
+        relations,
+        oov_probability=0.25,
+        token_dropout=0.001,
+        error_probability=0.1,
+        device="cpu",
+    ):
         self.vocabulary = vocabulary
         self.relations = relations
         self.oov_probability = oov_probability
@@ -32,15 +39,16 @@ class ConfigurationGenerator(LoggerMixin):
         self.device = device
 
     def generate(self, sentence):
-        configuration = Configuration(sentence, contextualized_input=None, model=None,
-                                      device=self.device)
+        configuration = Configuration(
+            sentence, contextualized_input=None, model=None, device=self.device
+        )
 
         item_filter = set()
 
         for configuration_item in self._generate_next_datapoint(configuration):
             feature_key = (
                 tuple(configuration_item.stack.cpu().tolist()),
-                tuple(configuration_item.buffer.cpu().tolist())
+                tuple(configuration_item.buffer.cpu().tolist()),
             )
 
             if feature_key not in item_filter:
@@ -66,7 +74,8 @@ class ConfigurationGenerator(LoggerMixin):
 
                     transitions = set([a.transition for a in valid_actions])
                     selected_wrong_actions = [
-                        a for a in selected_wrong_actions
+                        a
+                        for a in selected_wrong_actions
                         if a.transition != T.SWAP and a.transition not in transitions
                     ]
 
@@ -83,7 +92,10 @@ class ConfigurationGenerator(LoggerMixin):
                     else:
                         new_config = Configuration(
                             deepcopy(configuration.sentence),
-                            None, None, False, configuration.device
+                            None,
+                            None,
+                            False,
+                            configuration.device,
                         )
                         new_config.buffer = deepcopy(configuration.buffer)
                         new_config.stack = deepcopy(configuration.stack)
@@ -94,8 +106,9 @@ class ConfigurationGenerator(LoggerMixin):
                     gold_transition, gold_relation = self._get_gold_labels(action)
 
                     if source == "valid":
-                        wrong_transitions_tensor, wrong_relations_tensor = \
-                            self._get_all_labels(wrong_actions)
+                        wrong_transitions_tensor, wrong_relations_tensor = self._get_all_labels(
+                            wrong_actions
+                        )
 
                         yield ConfigurationGenerator.ConfigurationItem(
                             sentence=self._get_sentence_tensor(new_config.sentence),
@@ -104,7 +117,7 @@ class ConfigurationGenerator(LoggerMixin):
                             gold_transition=gold_transition,
                             gold_relation=gold_relation,
                             wrong_transitions=wrong_transitions_tensor,
-                            wrong_relations=wrong_relations_tensor
+                            wrong_relations=wrong_relations_tensor,
                         )
 
                     for configuration_item in self._generate_next_datapoint(new_config):
@@ -129,8 +142,9 @@ class ConfigurationGenerator(LoggerMixin):
 
         for probability in probabilities:
             if random() <= probability:
-                other_actions = [action for action in actions if
-                                 action not in filtered_actions]
+                other_actions = [
+                    action for action in actions if action not in filtered_actions
+                ]
                 if not other_actions:
                     break
 
@@ -157,13 +171,11 @@ class ConfigurationGenerator(LoggerMixin):
         return torch.tensor(tokens, dtype=torch.int64, device=self.device)
 
     def _get_gold_labels(self, action):
-        relation_id = self.relations.label_signature.get_id(
-            action.get_relation_object()
-        )
+        relation_id = self.relations.label_signature.get_id(action.get_relation_object())
 
         return (
             torch.tensor(action.transition.value, dtype=torch.int64, device=self.device),
-            torch.tensor(relation_id, dtype=torch.int64, device=self.device)
+            torch.tensor(relation_id, dtype=torch.int64, device=self.device),
         )
 
     def _get_all_labels(self, actions):
@@ -181,7 +193,7 @@ class ConfigurationGenerator(LoggerMixin):
 
         return (
             torch.tensor(transitions, dtype=torch.int64, device=self.device),
-            torch.tensor(relations, dtype=torch.int64, device=self.device)
+            torch.tensor(relations, dtype=torch.int64, device=self.device),
         )
 
     @staticmethod
@@ -191,7 +203,7 @@ class ConfigurationGenerator(LoggerMixin):
                 relation=configuration.top_stack_token.relation,
                 transition=T.LEFT_ARC,
                 score=1.0,
-                np_score=1.0
+                np_score=1.0,
             )
 
         if configuration.right_arc_conditions:
@@ -199,28 +211,17 @@ class ConfigurationGenerator(LoggerMixin):
                 relation=configuration.top_stack_token.relation,
                 transition=T.RIGHT_ARC,
                 score=1.0,
-                np_score=1.0
+                np_score=1.0,
             )
 
         if configuration.shift_conditions:
-            yield Action(
-                relation=None,
-                transition=T.SHIFT,
-                score=1.0,
-                np_score=1.0
-            )
+            yield Action(relation=None, transition=T.SHIFT, score=1.0, np_score=1.0)
 
         if configuration.swap_conditions:
-            yield Action(
-                relation=None,
-                transition=T.SWAP,
-                score=1.0,
-                np_score=1.0
-            )
+            yield Action(relation=None, transition=T.SWAP, score=1.0, np_score=1.0)
 
 
 class ConLLDataset(PyTorchDataset, LoggerMixin):
-
     def __init__(self, sentences, device="cpu", **kwargs):
         self.device = device
         self.sentences = sentences
@@ -232,12 +233,14 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
 
     def reset(self):
         new_data_points = []
-        with tqdm(self.sentences, desc="Generating training examples",
-                  maxinterval=1) as pbar:
+        with tqdm(
+            self.sentences, desc="Generating training examples", maxinterval=1
+        ) as pbar:
             for sentence in pbar:
                 new_data_points += list(self.data_generator.generate(sentence))
                 pbar.set_description(
-                    f"Generating training examples ({len(new_data_points)})")
+                    f"Generating training examples ({len(new_data_points)})"
+                )
 
         self.data_points = new_data_points
 
@@ -278,9 +281,7 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
         # Sort batch according to sentence length
         sentence_lengths = [item[1] for item in batch]
         order = sorted(
-            range(len(sentence_lengths)),
-            key=lambda k: sentence_lengths[k],
-            reverse=True
+            range(len(sentence_lengths)), key=lambda k: sentence_lengths[k], reverse=True
         )
         batch = [batch[i] for i in order]
 
@@ -294,9 +295,9 @@ class ConLLDataset(PyTorchDataset, LoggerMixin):
                 features = torch.stack([item[idx] for item in batch])
             else:
                 max_length = max(lengths)
-                features = torch.stack([
-                    pad_tensor(item[idx], max_length, padding=0) for item in batch
-                ])
+                features = torch.stack(
+                    [pad_tensor(item[idx], max_length, padding=0) for item in batch]
+                )
 
             ret.append(features)
             ret.append(torch.stack(lengths))

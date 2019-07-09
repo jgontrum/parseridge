@@ -1,12 +1,9 @@
 import torch
-from torch import nn
+from parseridge.parser.modules.positional_embeddings import PositionalEmbeddings
 
 from parseridge.parser.modules.attention import Attention
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.parser.modules.positional_embeddings import PositionalEmbeddings
-from parseridge.parser.modules.rnn import RNN
-from parseridge.parser.modules.utils import create_mask, lookup_tensors_for_indices, \
-    initialize_xavier_dynet_
+from parseridge.parser.modules.utils import create_mask, lookup_tensors_for_indices
 
 
 class SequenceAttention(Module):
@@ -24,14 +21,13 @@ class SequenceAttention(Module):
             self.positional_embeddings = PositionalEmbeddings(
                 embedding_size=self.positional_embedding_size,
                 max_length=40,
-                device=self.device
+                device=self.device,
             )
 
             attention_input_size += self.positional_embedding_size
 
         self.attention_layer = Attention(
-            input_size=attention_input_size,
-            device=self.device
+            input_size=attention_input_size, device=self.device
         )
 
         self.output_size = self.attention_layer.output_size
@@ -43,23 +39,16 @@ class SequenceAttention(Module):
             )
 
         batch = lookup_tensors_for_indices(
-            indices_batch=indices_batch,
-            sequence_batch=sentence_encoding_batch
+            indices_batch=indices_batch, sequence_batch=sentence_encoding_batch
         )
 
-        batch_mask = create_mask(
-            indices_lengths,
-            max_len=batch.size(1),
-            device=self.device
-        )
+        batch_mask = create_mask(indices_lengths, max_len=batch.size(1), device=self.device)
 
         if self.positional_embedding_size:
             positional_embeddings = self.positional_embeddings(
-                indices_lengths.cpu().tolist())
+                indices_lengths.cpu().tolist()
+            )
 
             batch = torch.cat((batch, positional_embeddings), dim=2)
 
-        return self.attention_layer(
-            batch, mask=batch_mask, debug=debug
-        )
-
+        return self.attention_layer(batch, mask=batch_mask, debug=debug)

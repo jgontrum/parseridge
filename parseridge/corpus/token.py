@@ -5,7 +5,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Token(LoggerMixin):
-
     def __init__(self, id, form, head, deprel, misc="_", is_root=False, **kwargs):
         self.id = id
         self.form = form
@@ -25,13 +24,7 @@ class Token(LoggerMixin):
 
     @classmethod
     def create_root_token(cls):
-        return cls(
-            id=0,
-            form="*root*",
-            head=None,
-            deprel="rroot",
-            is_root=True
-        )
+        return cls(id=0, form="*root*", head=None, deprel="rroot", is_root=True)
 
     def get_unparsed_token(self):
         return Token(
@@ -43,7 +36,7 @@ class Token(LoggerMixin):
             lemma=self.lemma,
             upostag=self.upostag,
             xpostag=self.xpostag,
-            misc=self.misc
+            misc=self.misc,
         )
 
     def serialize(self):
@@ -57,7 +50,7 @@ class Token(LoggerMixin):
             "head": self.head,
             "deprel": self.relation,
             "deps": "_",
-            "misc": self.misc
+            "misc": self.misc,
         }
         for k, v in copy(serialized).items():
             if v is None:

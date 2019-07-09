@@ -22,7 +22,8 @@ class LoggerMixin:
 
         # create formatter
         formatter = logging.Formatter(
-            "%(asctime)s | %(name)-15s | %(levelname)-5s : %(message)s")
+            "%(asctime)s | %(name)-15s | %(levelname)-5s : %(message)s"
+        )
 
         # add formatter to ch
         ch.setFormatter(formatter)

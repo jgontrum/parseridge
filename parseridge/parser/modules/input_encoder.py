@@ -7,10 +7,19 @@ from parseridge.parser.modules.mlp import MultilayerPerceptron
 
 
 class InputEncoder(Module):
-    def __init__(self, token_vocabulary, token_embedding_size,
-                 hidden_size, layers=2, dropout=0.33, max_sentence_length=100,
-                 positional_embedding_size=128, sum_directions=True,
-                 reduce_dimensionality=False, **kwargs):
+    def __init__(
+        self,
+        token_vocabulary,
+        token_embedding_size,
+        hidden_size,
+        layers=2,
+        dropout=0.33,
+        max_sentence_length=100,
+        positional_embedding_size=128,
+        sum_directions=True,
+        reduce_dimensionality=False,
+        **kwargs,
+    ):
         super(InputEncoder, self).__init__(**kwargs)
 
         self.token_vocabulary = token_vocabulary
@@ -45,7 +54,7 @@ class InputEncoder(Module):
             num_layers=layers,
             dropout=dropout,
             bidirectional=True,
-            batch_first=True
+            batch_first=True,
         )
 
         if self.reduce_dimensionality:
@@ -54,7 +63,7 @@ class InputEncoder(Module):
                 output_size=128,
                 hidden_sizes=[256],
                 dropout=0.33,
-                activation=nn.Tanh
+                activation=nn.Tanh,
             )
 
             self.output_size = self.mlp.output_size
@@ -62,28 +71,23 @@ class InputEncoder(Module):
     def load_external_embeddings(self, embeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
         self.token_embeddings.weight = embeddings.get_weight_matrix(
-            self.token_vocabulary, self.device)
+            self.token_vocabulary, self.device
+        )
 
     def forward(self, sentence_batch, sentence_lengths):
         tokens_embedded = self.token_embeddings(sentence_batch)
 
         input_packed = pack_padded_sequence(
-            tokens_embedded,
-            lengths=sentence_lengths,
-            batch_first=True
+            tokens_embedded, lengths=sentence_lengths, batch_first=True
         )
 
         packed_outputs, hidden = self.rnn(input_packed)
 
-        outputs, _ = pad_packed_sequence(
-            packed_outputs,
-            batch_first=True
-        )
+        outputs, _ = pad_packed_sequence(packed_outputs, batch_first=True)
 
         if self.sum_directions:
             outputs = (
-                    outputs[:, :, :self.hidden_size] +
-                    outputs[:, :, self.hidden_size:]
+                outputs[:, :, : self.hidden_size] + outputs[:, :, self.hidden_size :]
             )  # Sum bidirectional outputs
 
         if self.reduce_dimensionality:

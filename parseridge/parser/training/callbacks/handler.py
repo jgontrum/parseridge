@@ -28,9 +28,10 @@ class CallbackHandler(LoggerMixin):
         for callback in callbacks:
             if not isinstance(callback, Callback):
                 raise ValueError(
-                    f"Callback {callback.__class__.__name__} is not an Callback.")
+                    f"Callback {callback.__class__.__name__} is not an Callback."
+                )
 
-        return sorted(callbacks, key=lambda o: getattr(o, '_order', 0))
+        return sorted(callbacks, key=lambda o: getattr(o, "_order", 0))
 
     def _run_callbacks(self, event: str, kwargs: Dict[str, Any]) -> None:
         for callback in self.callbacks:

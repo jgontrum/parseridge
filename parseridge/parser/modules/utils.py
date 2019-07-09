@@ -17,12 +17,10 @@ def init_weights_xavier_(network, activation="tanh"):
         The network to initialize.
     """
     for name, param in network.named_parameters():
-        if 'bias' in name:
+        if "bias" in name:
             nn.init.constant_(param, 0.0)
-        elif 'weight' in name:
-            nn.init.xavier_normal_(
-                param, gain=nn.init.calculate_gain(activation)
-            )
+        elif "weight" in name:
+            nn.init.xavier_normal_(param, gain=nn.init.calculate_gain(activation))
 
 
 def initialize_xavier_dynet_(model, gain=1.0):
@@ -50,9 +48,9 @@ def initialize_xavier_dynet_(model, gain=1.0):
 
     else:
         for name, param in model.named_parameters():
-            if 'bias' in name:
+            if "bias" in name:
                 nn.init.constant_(param, 0.0)
-            elif 'weight' in name:
+            elif "weight" in name:
                 set_weights(param)
 
 
@@ -108,20 +106,19 @@ def create_mask(lengths, max_len=None, device="cpu"):
         max_len = max(lengths)
 
     # Build a mask that has a 0 for words and a 1 for the padding.
-    mask = [
-        [0] * length + [1] * (max_len - length)
-        for length in lengths
-    ]
+    mask = [[0] * length + [1] * (max_len - length) for length in lengths]
 
     # Create a ByteTensor on the given device and return it.
     return torch.tensor(mask, device=device, dtype=torch.uint8)
 
 
 def lookup_tensors_for_indices(indices_batch, sequence_batch):
-    return torch.stack([
-        torch.index_select(batch, dim=0, index=indices)
-        for batch, indices in zip(sequence_batch, indices_batch)
-    ])
+    return torch.stack(
+        [
+            torch.index_select(batch, dim=0, index=indices)
+            for batch, indices in zip(sequence_batch, indices_batch)
+        ]
+    )
 
 
 def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):

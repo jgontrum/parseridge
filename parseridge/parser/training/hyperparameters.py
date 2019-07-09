@@ -17,6 +17,7 @@ class Hyperparameters(LoggerMixin):
     Container for the various hyper-parameters used in the training process.
     They are stored here to keep the code in the trainer clean.
     """
+
     learning_rate: float = 1e-3
 
     batch_size: int = 4

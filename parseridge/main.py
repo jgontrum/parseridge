@@ -1,12 +1,6 @@
 import json
 
-from torch.utils.data import DataLoader
-
-from parseridge.corpus.relations import Relations
 from parseridge.corpus.sentence import Sentence
-from parseridge.corpus.training_data import ConLLDataset
-from parseridge.corpus.treebank import Treebank
-from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.parseridge import Parseridge
 from parseridge.utils.cli_parser import parse_cli_arguments
@@ -19,12 +13,15 @@ def start():
     options = parse_cli_arguments()
 
     logger.info(
-        f"\nHyper Parameters: {json.dumps(vars(options), indent=2, sort_keys=True)}")
+        f"\nHyper Parameters: {json.dumps(vars(options), indent=2, sort_keys=True)}"
+    )
 
     if options.seed:
         set_seed(options.seed)
-        logger.warning(f"Set seed to '{options.seed}'."
-                       f"This could have a performance impact when run on CUDA.")
+        logger.warning(
+            f"Set seed to '{options.seed}'."
+            f"This could have a performance impact when run on CUDA."
+        )
 
     if options.train:
         if options.embeddings_file:
@@ -70,9 +67,9 @@ def start():
             google_sheet_auth_file=options.google_sheet_auth_file,
             embeddings=embeddings,
             loss_function=options.loss_function,
-            params=vars(options)
+            params=vars(options),
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     start()

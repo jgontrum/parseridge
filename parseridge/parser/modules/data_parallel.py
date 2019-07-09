@@ -15,7 +15,6 @@ class DataParallel(nn.DataParallel):
 
 
 class Module(nn.Module, LoggerMixin):
-
     def __init__(self, device="cpu", **kwargs):
         super(Module, self).__init__(**kwargs)
         self.device = device

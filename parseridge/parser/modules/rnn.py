@@ -20,15 +20,14 @@ class RNN(Module):
         seq_lengths = torch.tensor(
             [max(1, sequence_len) for sequence_len in sequence_lengths],
             device=self.device,
-            dtype=torch.long
+            dtype=torch.long,
         )
 
         seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
 
         seq_tensors = input[perm_idx]
 
-        packed_input = pack_padded_sequence(
-            seq_tensors, seq_lengths, batch_first=True)
+        packed_input = pack_padded_sequence(seq_tensors, seq_lengths, batch_first=True)
 
         packed_output, _ = self.rnn(packed_input)
 

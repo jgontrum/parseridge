@@ -15,7 +15,7 @@ class EvalSimpleLogger(EvalCallback):
             f"{scores['dev']['uas']:2f} UAS."
         )
 
-        if scores['test']['las'] is not None:
+        if scores["test"]["las"] is not None:
             self.logger.info(
                 f"Evaluation on 'test' : {scores['test']['las']:2f} LAS, "
                 f"{scores['test']['uas']:2f} UAS."

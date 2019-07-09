@@ -8,9 +8,10 @@ class EvaluationCallback(Callback):
     This is a basic callback that ensures that the model is set to training mode in the
     beginning of an epoch and that all the gradients are cleared.
     """
+
     _order = 100
 
-    def __init__(self, evaluator: "parseridge.parser.evaluation.Evaluator"):
+    def __init__(self, evaluator):
         self._current_epoch = None
         self.evaluator = evaluator
 

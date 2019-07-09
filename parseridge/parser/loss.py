@@ -8,12 +8,18 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Loss(ABC, LoggerMixin):
-
     @abstractmethod
-    def __call__(self, pred_transitions: Tensor, pred_relations: Tensor,
-                 gold_transitions: Tensor, gold_relations: Tensor,
-                 wrong_transitions: Tensor, wrong_transitions_lengths: Tensor,
-                 wrong_relations: Tensor, wrong_relations_lengths: Tensor) -> Tensor:
+    def __call__(
+        self,
+        pred_transitions: Tensor,
+        pred_relations: Tensor,
+        gold_transitions: Tensor,
+        gold_relations: Tensor,
+        wrong_transitions: Tensor,
+        wrong_transitions_lengths: Tensor,
+        wrong_relations: Tensor,
+        wrong_relations_lengths: Tensor,
+    ) -> Tensor:
         raise NotImplementedError()
 
 
@@ -26,8 +32,14 @@ class PyTorchLoss(Loss):
         self.criterion = criterion
         assert isinstance(self.criterion, _Loss)
 
-    def __call__(self, pred_transitions: Tensor, pred_relations: Tensor,
-                 gold_transitions: Tensor, gold_relations: Tensor, **kwargs) -> Tensor:
+    def __call__(
+        self,
+        pred_transitions: Tensor,
+        pred_relations: Tensor,
+        gold_transitions: Tensor,
+        gold_relations: Tensor,
+        **kwargs,
+    ) -> Tensor:
         loss_transition = self.criterion(pred_transitions, gold_transitions)
         loss_relation = self.criterion(pred_relations, gold_relations)
 
@@ -35,21 +47,30 @@ class PyTorchLoss(Loss):
 
 
 class MaxMarginLoss(Loss):
-
     def __init__(self, margin_threshold: float = 1.0):
         self.margin_threshold = margin_threshold
 
-    def __call__(self, pred_transitions: Tensor, pred_relations: Tensor,
-                 gold_transitions: Tensor, gold_relations: Tensor,
-                 wrong_transitions: Tensor, wrong_transitions_lengths: Tensor,
-                 wrong_relations: Tensor, wrong_relations_lengths: Tensor) -> Tensor:
+    def __call__(
+        self,
+        pred_transitions: Tensor,
+        pred_relations: Tensor,
+        gold_transitions: Tensor,
+        gold_relations: Tensor,
+        wrong_transitions: Tensor,
+        wrong_transitions_lengths: Tensor,
+        wrong_relations: Tensor,
+        wrong_relations_lengths: Tensor,
+    ) -> Tensor:
         gold_scores = self._get_gold_scores(
             pred_transitions, pred_relations, gold_transitions, gold_relations
         )
 
         wrong_scores = self._get_wrong_scores(
-            pred_transitions, pred_relations, wrong_transitions, wrong_relations,
-            wrong_transitions_lengths
+            pred_transitions,
+            pred_relations,
+            wrong_transitions,
+            wrong_relations,
+            wrong_transitions_lengths,
         )
 
         # Compute the margin between the best wrong scores and the gold scores
@@ -62,22 +83,32 @@ class MaxMarginLoss(Loss):
         return loss
 
     @staticmethod
-    def _get_gold_scores(pred_transitions: Tensor, pred_relations: Tensor,
-                         gold_transitions: Tensor, gold_relations: Tensor) -> Tensor:
+    def _get_gold_scores(
+        pred_transitions: Tensor,
+        pred_relations: Tensor,
+        gold_transitions: Tensor,
+        gold_relations: Tensor,
+    ) -> Tensor:
         # Compute the scores of the gold items by adding the score for the relation to
         # the score of the transition.
         gold_transitions_scores = pred_transitions.gather(
-            dim=1, index=gold_transitions.unsqueeze(1))
+            dim=1, index=gold_transitions.unsqueeze(1)
+        )
 
         gold_relations_scores = pred_relations.gather(
-            dim=1, index=gold_relations.unsqueeze(1))
+            dim=1, index=gold_relations.unsqueeze(1)
+        )
 
         return (gold_transitions_scores + gold_relations_scores).squeeze()
 
     @staticmethod
-    def _get_wrong_scores(pred_transitions: Tensor, pred_relations: Tensor,
-                          wrong_transitions: Tensor, wrong_relations: Tensor,
-                          wrong_transitions_lengths: Tensor) -> Tensor:
+    def _get_wrong_scores(
+        pred_transitions: Tensor,
+        pred_relations: Tensor,
+        wrong_transitions: Tensor,
+        wrong_relations: Tensor,
+        wrong_transitions_lengths: Tensor,
+    ) -> Tensor:
         # In every batch, compute a score for all the wrong items
         wrong_transitions_scores = torch.gather(pred_transitions, 1, wrong_transitions)
         wrong_relations_scores = torch.gather(pred_relations, 1, wrong_relations)
@@ -92,8 +123,9 @@ class MaxMarginLoss(Loss):
         # See: http://juditacs.github.io/2018/12/27/masked-attention.html
         max_len = wrong_scores.size(1)
         device = wrong_actions_lengths.device
-        mask = \
+        mask = (
             torch.arange(max_len, device=device)[None, :] < wrong_actions_lengths[:, None]
+        )
 
         # Invert mask and blank out all padding.
         wrong_scores[~mask] = float("-inf")
@@ -109,7 +141,7 @@ class Criterion(Loss):
         "CrossEntropy": lambda kwargs: PyTorchLoss(nn.CrossEntropyLoss(**kwargs)),
         "MSELoss": lambda kwargs: PyTorchLoss(nn.MSELoss(**kwargs)),
         "NLLLoss": lambda kwargs: PyTorchLoss(nn.NLLLoss(**kwargs)),
-        "MaxMargin": lambda kwargs: MaxMarginLoss(**kwargs)
+        "MaxMargin": lambda kwargs: MaxMarginLoss(**kwargs),
     }
 
     def __init__(self, loss_function: str = "CrossEntropy", **kwargs):

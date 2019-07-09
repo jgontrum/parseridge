@@ -7,16 +7,23 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Trainer(LoggerMixin):
-
-    def __init__(self, model:Module, learning_rate=1e-3, weight_decay=0.00, loss_factor=0.75,
-                 update_size=50, gradient_clipping=10, mode="avg"):
+    def __init__(
+        self,
+        model: Module,
+        learning_rate=1e-3,
+        weight_decay=0.00,
+        loss_factor=0.75,
+        update_size=50,
+        gradient_clipping=10,
+        mode="avg",
+    ):
 
         self.supported_modes = ["avg", "sum"]
         self.optimizer = Adam(
             model.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay,
-            betas=(0.9, 0.999)
+            betas=(0.9, 0.999),
         )
 
         self.model = model
@@ -40,7 +47,8 @@ class Trainer(LoggerMixin):
 
             if self.gradient_clipping > 0:
                 torch.nn.utils.clip_grad_value_(
-                    self.model.parameters(), self.gradient_clipping)
+                    self.model.parameters(), self.gradient_clipping
+                )
 
             self.optimizer.step()
             self.optimizer.zero_grad()

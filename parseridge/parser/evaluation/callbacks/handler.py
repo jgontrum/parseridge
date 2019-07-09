@@ -21,9 +21,10 @@ class EvalCallbackHandler(LoggerMixin):
         for callback in callbacks:
             if not isinstance(callback, EvalCallback):
                 raise ValueError(
-                    f"Callback {callback.__class__.__name__} is not an EvalCallback.")
+                    f"Callback {callback.__class__.__name__} is not an EvalCallback."
+                )
 
-        return sorted(callbacks, key=lambda o: getattr(o, '_order', 0))
+        return sorted(callbacks, key=lambda o: getattr(o, "_order", 0))
 
     def _run_callbacks(self, event: str, kwargs: Dict[str, Any]) -> None:
         for callback in self.callbacks:

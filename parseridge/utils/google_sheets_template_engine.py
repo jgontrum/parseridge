@@ -68,17 +68,14 @@ class GoogleSheetsTemplateEngine(LoggerMixin):
 
     def _create_worksheet(self, name):
         return self.spreadsheet.add_worksheet(
-            title=name,
-            src_worksheet=self.spreadsheet.worksheet_by_title("Template")
+            title=name, src_worksheet=self.spreadsheet.worksheet_by_title("Template")
         )
 
     def _parse_template(self):
         template_cells = {}
 
         cells = self.worksheet.get_all_values(
-            returnas="cell",
-            include_tailing_empty=False,
-            include_tailing_empty_rows=False
+            returnas="cell", include_tailing_empty=False, include_tailing_empty_rows=False
         )
 
         for cell in chain(*cells):
@@ -95,9 +92,7 @@ class GoogleSheetsTemplateEngine(LoggerMixin):
                 cell.value = ""
 
                 template_cells[var_name] = self.TemplateCell(
-                    template_cell=cell,
-                    position=[cell.row, cell.col],
-                    direction=direction
+                    template_cell=cell, position=[cell.row, cell.col], direction=direction
                 )
 
                 self._cell_buffer.append(cell)

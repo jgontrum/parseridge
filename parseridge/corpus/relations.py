@@ -4,7 +4,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Relations(LoggerMixin):
-
     def __init__(self, sentences):
         relations = set()
         for sentence in sentences:
@@ -16,10 +15,7 @@ class Relations(LoggerMixin):
         self.label_signature = Signature(warn_on_oov=True)
         self.signature = Signature(warn_on_oov=True)
 
-        self.labels = [
-            Relation(T.SHIFT, None),
-            Relation(T.SWAP, None),
-        ]
+        self.labels = [Relation(T.SHIFT, None), Relation(T.SWAP, None)]
 
         self.label_signature.add(Relation(T.SHIFT, None))
         self.label_signature.add(Relation(T.SWAP, None))

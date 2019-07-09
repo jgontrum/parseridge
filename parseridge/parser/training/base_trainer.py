@@ -7,24 +7,21 @@ from torch.optim.optimizer import Optimizer
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.training.callbacks.base_callback import Callback
 from parseridge.parser.training.callbacks.handler import CallbackHandler
-from parseridge.parser.training.callbacks.model_training_callback import \
-    ModelTrainingCallback
+from parseridge.parser.training.callbacks.model_training_callback import (
+    ModelTrainingCallback,
+)
 from parseridge.utils.logger import LoggerMixin
 
 
 class Trainer(LoggerMixin, ABC):
-
-    def __init__(self,
-                 model: Module,
-                 optimizer: Optimizer,
-                 callbacks: List[Callback] = None):
+    def __init__(
+        self, model: Module, optimizer: Optimizer, callbacks: List[Callback] = None
+    ):
         self.model = model
         self.optimizer = optimizer
 
         self.callback_handler = CallbackHandler(
-            callbacks=callbacks or [],
-            model=self.model,
-            optimizer=self.optimizer
+            callbacks=callbacks or [], model=self.model, optimizer=self.optimizer
         )
 
         self.callback_handler.register_callback(ModelTrainingCallback())

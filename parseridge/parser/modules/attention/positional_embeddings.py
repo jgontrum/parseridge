@@ -19,7 +19,8 @@ class PositionalEncoder(Module):
             for i in range(0, self.model_size, 2):
                 pe[pos, i] = math.sin(pos / (10000 ** ((2 * i) / self.model_size)))
                 pe[pos, i + 1] = math.cos(
-                    pos / (10000 ** ((2 * (i + 1)) / self.model_size)))
+                    pos / (10000 ** ((2 * (i + 1)) / self.model_size))
+                )
 
         pe = pe.unsqueeze(0)
         self.register_buffer("pe", pe)
@@ -31,4 +32,5 @@ class PositionalEncoder(Module):
         # add constant to embedding
         seq_len = x.size(1)
         return x + torch.tensor(
-            self.pe[:, :seq_len], requires_grad=False, device=self.device)
+            self.pe[:, :seq_len], requires_grad=False, device=self.device
+        )

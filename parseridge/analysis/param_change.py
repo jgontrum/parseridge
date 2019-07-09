@@ -5,14 +5,12 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class ParameterChangeAnalyzer(LoggerMixin):
-
     def __init__(self):
         self.last_parameters = None
 
     def add_modules(self, modules, report=False):
         new_parameters = {
-            name: np.abs(get_parameters(params))
-            for name, params in modules.items()
+            name: np.abs(get_parameters(params)) for name, params in modules.items()
         }
 
         if self.last_parameters is None:

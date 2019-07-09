@@ -1,9 +1,6 @@
-from tqdm import tqdm
-
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.sentence import Sentence
-from parseridge.corpus.signature import Signature
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.utils.logger import LoggerMixin
 
@@ -27,9 +24,7 @@ class Treebank(LoggerMixin):
         self.relations = Relations(train_sentences)
 
         self.train_corpus = Corpus(
-            sentences=train_sentences,
-            vocabulary=self.vocabulary,
-            device=device
+            sentences=train_sentences, vocabulary=self.vocabulary, device=device
         )
 
         self.vocabulary.read_only()
@@ -41,7 +36,7 @@ class Treebank(LoggerMixin):
             self.dev_corpus = Corpus(
                 sentences=list(Sentence.from_conllu(dev_as_string)),
                 vocabulary=self.vocabulary,
-                device=device
+                device=device,
             )
 
         self.test_corpus = None
@@ -50,5 +45,5 @@ class Treebank(LoggerMixin):
             self.test_corpus = Corpus(
                 sentences=list(Sentence.from_conllu(test_as_string)),
                 vocabulary=self.vocabulary,
-                device=device
+                device=device,
             )

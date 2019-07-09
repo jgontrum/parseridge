@@ -17,8 +17,9 @@ class DynamicTrainer(Trainer):
     The default trainer.
     """
 
-    def _run_epoch(self, epoch: int, training_data: Corpus,
-                   hyper_parameters: Hyperparameters):
+    def _run_epoch(
+        self, epoch: int, training_data: Corpus, hyper_parameters: Hyperparameters
+    ):
         iterator = CorpusIterator(
             training_data,
             batch_size=hyper_parameters.batch_size,
@@ -26,11 +27,12 @@ class DynamicTrainer(Trainer):
             train=True,
             oov_probability=hyper_parameters.oov_probability,
             group_by_length=True,
-            token_dropout=hyper_parameters.token_dropout
+            token_dropout=hyper_parameters.token_dropout,
         )
 
         self.callback_handler.on_epoch_begin(
-            epoch=epoch, num_batches=len(iterator), training_data=training_data)
+            epoch=epoch, num_batches=len(iterator), training_data=training_data
+        )
 
         loss = []
         epoch_loss = 0
@@ -42,7 +44,7 @@ class DynamicTrainer(Trainer):
                 current_loss = self._process_training_batch(
                     batch=batch,
                     error_probability=hyper_parameters.error_probability,
-                    margin_threshold=hyper_parameters.margin_threshold
+                    margin_threshold=hyper_parameters.margin_threshold,
                 )
 
                 loss += current_loss
@@ -52,7 +54,8 @@ class DynamicTrainer(Trainer):
                     self.learn(combined_loss)
 
                     batch_loss = combined_loss.item() + (
-                            hyper_parameters.margin_threshold * len(loss))
+                        hyper_parameters.margin_threshold * len(loss)
+                    )
                     epoch_loss += batch_loss
                     loss = []
                 else:
@@ -61,22 +64,28 @@ class DynamicTrainer(Trainer):
                 self.last_epoch = epoch
 
                 self.callback_handler.on_batch_end(
-                    batch=i, batch_data=batch, batch_loss=batch_loss)
+                    batch=i, batch_data=batch, batch_loss=batch_loss
+                )
             except StopEpoch:
                 self.logger.info(f"Stopping epoch after {i}/{len(iterator)} batches.")
                 break
 
         self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
 
-    def fit(self, epochs: int, training_data: Corpus,
-            hyper_parameters: Hyperparameters = None,
-            **kwargs) -> None:
+    def fit(
+        self,
+        epochs: int,
+        training_data: Corpus,
+        hyper_parameters: Hyperparameters = None,
+        **kwargs,
+    ) -> None:
         hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
 
         initial_epoch = self.last_epoch
 
         self.callback_handler.on_train_begin(
-            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters)
+            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters
+        )
 
         for epoch in range(initial_epoch + 1, epochs + initial_epoch + 1):
             try:
@@ -87,8 +96,9 @@ class DynamicTrainer(Trainer):
 
         self.callback_handler.on_train_end()
 
-    def _process_training_batch(self, batch, error_probability, margin_threshold) -> List[
-        torch.Tensor]:
+    def _process_training_batch(
+        self, batch, error_probability, margin_threshold
+    ) -> List[torch.Tensor]:
         loss = []
 
         # The batch contains of a tensor of processed sentences
@@ -113,8 +123,9 @@ class DynamicTrainer(Trainer):
         # Create the initial configurations for all sentences in the batch
         configurations = [
             Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in
-            zip(contextualized_tokens_batch, sentences)
+            for contextualized_input, sentence in zip(
+                contextualized_tokens_batch, sentences
+            )
         ]
 
         # Main loop for the sentences in this batch
@@ -144,9 +155,9 @@ class DynamicTrainer(Trainer):
                 # possible, but would introduce an error compared to the
                 # gold tree. To keep the model robust, we sometimes
                 # decided, however, to use it instead of the valid one.
-                best_action, best_valid_action, best_wrong_action = \
-                    configuration.select_actions(
-                        actions, costs, error_probability, margin_threshold)
+                best_action, best_valid_action, best_wrong_action = configuration.select_actions(
+                    actions, costs, error_probability, margin_threshold
+                )
 
                 # Apply the dynamic oracle to update the sentence structure
                 # for the case that the chosen action does not exactly
@@ -157,9 +168,11 @@ class DynamicTrainer(Trainer):
                 configuration.apply_transition(best_action)
 
                 # Compute the loss by using the margin between the scores
-                if (best_wrong_action.transition is not None
-                        and best_valid_action.np_score <
-                        best_wrong_action.np_score + margin_threshold):
+                if (
+                    best_wrong_action.transition is not None
+                    and best_valid_action.np_score
+                    < best_wrong_action.np_score + margin_threshold
+                ):
                     margin = best_wrong_action.score - best_valid_action.score
                     loss.append(margin)
 
@@ -188,7 +201,7 @@ class DynamicTrainer(Trainer):
             stacks=to_int_tensor(padded_stacks, device=model.device),
             stack_lengths=to_int_tensor(stack_len, device=model.device),
             buffers=to_int_tensor(padded_buffers, device=model.device),
-            buffer_lengths=to_int_tensor(buffer_len, device=model.device)
+            buffer_lengths=to_int_tensor(buffer_len, device=model.device),
         )
 
         # Isolate the columns for the transitions
@@ -212,10 +225,12 @@ class DynamicTrainer(Trainer):
 
         # For the left and right arc scores, we're only interested in the
         # two best entries, so we extract then in one go.
-        left_arc_scores_sorted, left_arc_scores_indices = \
-            torch.sort(left_arc_scores_batch, descending=True)
-        right_arc_scores_sorted, right_arc_scores_indices = \
-            torch.sort(right_arc_scores_batch, descending=True)
+        left_arc_scores_sorted, left_arc_scores_indices = torch.sort(
+            left_arc_scores_batch, descending=True
+        )
+        right_arc_scores_sorted, right_arc_scores_indices = torch.sort(
+            right_arc_scores_batch, descending=True
+        )
 
         # Only take the best two items
         left_arc_scores_sorted = left_arc_scores_sorted[:, :2]
@@ -226,10 +241,15 @@ class DynamicTrainer(Trainer):
         right_arc_scores_indices = right_arc_scores_indices[:, :2].cpu().numpy()
 
         combinations = zip(
-            configurations, shift_score_batch, swap_score_batch,
-            left_arc_scores_batch, right_arc_scores_batch,
-            left_arc_scores_sorted, left_arc_scores_indices,
-            right_arc_scores_sorted, right_arc_scores_indices
+            configurations,
+            shift_score_batch,
+            swap_score_batch,
+            left_arc_scores_batch,
+            right_arc_scores_batch,
+            left_arc_scores_sorted,
+            left_arc_scores_indices,
+            right_arc_scores_sorted,
+            right_arc_scores_indices,
         )
 
         # Update the result of the classifiers in the configurations

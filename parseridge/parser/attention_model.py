@@ -5,31 +5,33 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
-from parseridge.parser.modules.attention.universal_attention import UniversalAttention, \
-    LinearAttention
+from parseridge.parser.modules.attention.universal_attention import UniversalAttention
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import initialize_xavier_dynet_, \
-    lookup_tensors_for_indices
+from parseridge.parser.modules.utils import (
+    initialize_xavier_dynet_,
+    lookup_tensors_for_indices,
+)
 
 
 class AttentionModel(Module):
-
-    def __init__(self,
-                 relations: Relations,
-                 vocabulary: Vocabulary,
-                 num_stack: int = 3,
-                 num_buffer: int = 1,
-                 lstm_dropout: float = 0.33,
-                 mlp_dropout: float = 0.25,
-                 embedding_size: int = 100,
-                 lstm_hidden_size: int = 125,
-                 lstm_layers: int = 2,
-                 transition_mlp_layers: List[int] = None,
-                 relation_mlp_layers: List[int] = None,
-                 embeddings: List[int] = None,
-                 device: str = "cpu") -> None:
+    def __init__(
+        self,
+        relations: Relations,
+        vocabulary: Vocabulary,
+        num_stack: int = 3,
+        num_buffer: int = 1,
+        lstm_dropout: float = 0.33,
+        mlp_dropout: float = 0.25,
+        embedding_size: int = 100,
+        lstm_hidden_size: int = 125,
+        lstm_layers: int = 2,
+        transition_mlp_layers: List[int] = None,
+        relation_mlp_layers: List[int] = None,
+        embeddings: List[int] = None,
+        device: str = "cpu",
+    ) -> None:
 
         super().__init__(device=device)
 
@@ -71,7 +73,7 @@ class AttentionModel(Module):
             positional_embedding_size=False,
             sum_directions=False,
             reduce_dimensionality=False,
-            device=device
+            device=device,
         )
 
         """Computes attention over the output of the input encoder given the state of the
@@ -80,18 +82,19 @@ class AttentionModel(Module):
             query_dim=self.input_encoder.output_size,
             similarity="learned",
             normalization="softmax",
-            device=device
+            device=device,
         )
 
         self.buffer_attention = UniversalAttention(
             query_dim=self.input_encoder.output_size,
             similarity="learned",
             normalization="softmax",
-            device=device
+            device=device,
         )
 
         self.mlp_in_size = (
-                self.buffer_attention.output_size + self.stack_attention.output_size)
+            self.buffer_attention.output_size + self.stack_attention.output_size
+        )
 
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
@@ -99,7 +102,7 @@ class AttentionModel(Module):
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
             activation=nn.Tanh,
-            device=device
+            device=device,
         )
 
         self.relation_mlp = MultilayerPerceptron(
@@ -108,7 +111,7 @@ class AttentionModel(Module):
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
             activation=nn.Tanh,
-            device=device
+            device=device,
         )
 
         self._mlp_padding_param = nn.Parameter(
@@ -123,32 +126,31 @@ class AttentionModel(Module):
     def reset_(self) -> None:
         self._mlp_padding = nn.Tanh()(self._mlp_padding_param)
 
-    def get_contextualized_input(self,
-                                 token_sequences: torch.Tensor,
-                                 sentence_lengths: torch.Tensor) -> torch.Tensor:
+    def get_contextualized_input(
+        self, token_sequences: torch.Tensor, sentence_lengths: torch.Tensor
+    ) -> torch.Tensor:
         outputs, _ = self.input_encoder(token_sequences, sentence_lengths)
         return outputs
 
-    def compute_mlp_output(self,
-                           contextualized_input_batch: torch.Tensor,
-                           stacks: torch.Tensor,
-                           stack_lengths: torch.Tensor,
-                           buffers: torch.Tensor,
-                           buffer_lengths: torch.Tensor
-                           ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def compute_mlp_output(
+        self,
+        contextualized_input_batch: torch.Tensor,
+        stacks: torch.Tensor,
+        stack_lengths: torch.Tensor,
+        buffers: torch.Tensor,
+        buffer_lengths: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         stacks = lookup_tensors_for_indices(stacks, contextualized_input_batch)
         buffers = lookup_tensors_for_indices(buffers, contextualized_input_batch)
 
         # Compute a representation of the stack / buffer as an weighted average based
         # on the attention weights.
         stack_batch_attention, _, stack_attention_energies = self.stack_attention(
-            keys=stacks,
-            sequence_lengths=stack_lengths
+            keys=stacks, sequence_lengths=stack_lengths
         )
 
         buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
-            keys=buffers,
-            sequence_lengths=buffer_lengths
+            keys=buffers, sequence_lengths=buffer_lengths
         )
 
         mlp_input = torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
@@ -159,15 +161,16 @@ class AttentionModel(Module):
 
         return transitions_output, relations_output
 
-    def forward(self,
-                stacks: torch.Tensor,
-                stack_lengths: torch.Tensor,
-                buffers: torch.Tensor,
-                buffer_lengths: torch.Tensor,
-                token_sequences: Optional[torch.Tensor] = None,
-                sentence_lengths: Optional[torch.Tensor] = None,
-                contextualized_input_batch: Optional[List[torch.Tensor]] = None
-                ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        stacks: torch.Tensor,
+        stack_lengths: torch.Tensor,
+        buffers: torch.Tensor,
+        buffer_lengths: torch.Tensor,
+        token_sequences: Optional[torch.Tensor] = None,
+        sentence_lengths: Optional[torch.Tensor] = None,
+        contextualized_input_batch: Optional[List[torch.Tensor]] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if contextualized_input_batch is None:
             assert token_sequences is not None
@@ -187,7 +190,7 @@ class AttentionModel(Module):
             stacks=stacks,
             stack_lengths=stack_lengths,
             buffers=buffers,
-            buffer_lengths=buffer_lengths
+            buffer_lengths=buffer_lengths,
         )
 
         return transitions_output, relations_output

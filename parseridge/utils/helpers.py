@@ -8,21 +8,21 @@ import torch
 from parseridge.utils.logger import LoggerMixin
 
 """
-Container to store a relation that is bound to a transition. 
+Container to store a relation that is bound to a transition.
 """
-Relation = namedtuple(
-    "Relation",
-    [
-        "transition",
-        "label"
-    ]
-)
+Relation = namedtuple("Relation", ["transition", "label"])
 
 
 class Metric(LoggerMixin):
-
-    def __init__(self, loss=0.0, num_updates=0, iterations=1, num_transitions=0,
-                 num_errors=0, num_backprop=0):
+    def __init__(
+        self,
+        loss=0.0,
+        num_updates=0,
+        iterations=1,
+        num_transitions=0,
+        num_errors=0,
+        num_backprop=0,
+    ):
         self.loss = loss
         self.num_updates = num_updates
         self.iterations = iterations
@@ -37,7 +37,7 @@ class Metric(LoggerMixin):
             self.iterations + other.iterations,
             self.num_transitions + other.num_transitions,
             self.num_errors + other.num_errors,
-            self.num_backprop + other.num_backprop
+            self.num_backprop + other.num_backprop,
         )
 
 
@@ -46,6 +46,7 @@ class Transition(Enum):
     Enumeration class to represent the different transitions in a more readable
     way.
     """
+
     LEFT_ARC = 2
     RIGHT_ARC = 3
     SHIFT = 0
@@ -60,8 +61,13 @@ class Action:
     Container that represents a proposed action that the parser could perform.
     """
 
-    def __init__(self, relation: Relation, transition: Transition, score: torch.tensor,
-                 np_score: np.array = None):
+    def __init__(
+        self,
+        relation: Relation,
+        transition: Transition,
+        score: torch.tensor,
+        np_score: np.array = None,
+    ):
         self.relation = relation
         self.transition = transition
         self.score = score
@@ -79,9 +85,7 @@ class Action:
 
 
 def get_device():
-    return torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    )
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def create_dirs(path):
@@ -110,6 +114,5 @@ def set_seed(seed=None):
 
 
 class RobustDict(dict):
-
     def __getitem__(self, item):
         return self.get(item)

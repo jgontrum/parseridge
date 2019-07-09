@@ -7,7 +7,9 @@ def test_read_and_serialize():
     with open(get_fixtures_path("sentence_01.conllu")) as sentence_io:
         train_sentence = list(Sentence.from_conllu("".join(sentence_io)))[0]
 
-    assert repr(train_sentence) == """# newdoc id = GUM_academic_art
+    assert (
+        repr(train_sentence)
+        == """# newdoc id = GUM_academic_art
 # sent_id = GUM_academic_art-1
 # text = Aesthetic Appreciation and Spanish Art:
 # s_type = frag
@@ -19,3 +21,4 @@ def test_read_and_serialize():
 6	:	:	PUNCT	:	_	2	punct	_	_
 
 """
+    )

@@ -4,7 +4,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Signature(LoggerMixin):
-
     def __init__(self, entries=None, warn_on_oov=False):
         self._read_only = False
         self._warn_on_oov = warn_on_oov
@@ -32,7 +31,7 @@ class Signature(LoggerMixin):
             id_ = self._item_to_id.get(item, self.oov)
             if id_ == self.oov and self._warn_on_oov:
                 self.logger.warning(f"Item not found: '{item}'")
-            return  id_
+            return id_
 
         self._item_to_count[item] += 1
 

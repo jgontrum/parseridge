@@ -1,12 +1,18 @@
 import torch.nn as nn
 
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.utils.logger import LoggerMixin
 
 
 class MultilayerPerceptron(Module):
-    def __init__(self, input_size, hidden_sizes, output_size,
-                 dropout=0.0, activation=nn.Tanh, device="cpu"):
+    def __init__(
+        self,
+        input_size,
+        hidden_sizes,
+        output_size,
+        dropout=0.0,
+        activation=nn.Tanh,
+        device="cpu",
+    ):
         super(MultilayerPerceptron, self).__init__()
 
         self.input_size = input_size

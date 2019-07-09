@@ -2,7 +2,6 @@ import random
 from copy import deepcopy
 
 import conllu
-from tqdm import tqdm
 
 from parseridge.corpus.token import Token
 from parseridge.parser.configuration import Configuration
@@ -11,7 +10,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Sentence(LoggerMixin):
-
     def __init__(self, tokens, text=None, meta=None, sentence_id=None):
         self._iter = 0
         self.text = text
@@ -22,10 +20,10 @@ class Sentence(LoggerMixin):
         self.tokens = [Token.create_root_token()] + tokens
 
         for token in self:
-            token.parent = None if token.head is None \
-                else self.tokens[token.head]
+            token.parent = None if token.head is None else self.tokens[token.head]
             token.dependents = [
-                other_token.id for other_token in self.tokens
+                other_token.id
+                for other_token in self.tokens
                 if other_token.head == token.id
             ]
 
@@ -45,9 +43,7 @@ class Sentence(LoggerMixin):
 
             # Get all the tokens that are dependents of the token
             # at the current index and left to it.
-            left_dependents = [
-                token for token in self[:index] if token.head == index
-            ]
+            left_dependents = [token for token in self[:index] if token.head == index]
             for dependent in left_dependents:
                 results += self._calculate_token_order(queue, dependent.id)
 
@@ -55,9 +51,7 @@ class Sentence(LoggerMixin):
             results.append(self[index])
 
             # Get all the dependents right to it
-            right_dependents = [
-                token for token in self[index:] if token.head == index
-            ]
+            right_dependents = [token for token in self[index:] if token.head == index]
             for dependent in right_dependents:
                 results += self._calculate_token_order(queue, dependent.id)
 
@@ -65,8 +59,7 @@ class Sentence(LoggerMixin):
 
     def to_conllu(self):
         return conllu.TokenList(
-            [token.serialize() for token in self[1:]],
-            metadata=self.meta
+            [token.serialize() for token in self[1:]], metadata=self.meta
         )
 
     def get_empty_copy(self):
@@ -88,9 +81,7 @@ class Sentence(LoggerMixin):
     def __getitem__(self, i):
         # Look up tokens for a list of indices
         if isinstance(i, list):
-            return [
-                self[j] for j in i
-            ]
+            return [self[j] for j in i]
         # Normal index / slice lookup
         return self.tokens[i]
 
@@ -116,10 +107,11 @@ class Sentence(LoggerMixin):
         for sentence in conllu.parse(conllu_string):
             yield cls(
                 # Add all tokens, but ignore parataxis (here the id is a tuple)
-                tokens=[Token(**token) for token in sentence
-                        if isinstance(token["id"], int)],
+                tokens=[
+                    Token(**token) for token in sentence if isinstance(token["id"], int)
+                ],
                 text=sentence.metadata["text"],
-                meta=sentence.metadata
+                meta=sentence.metadata,
             )
 
 
@@ -133,9 +125,7 @@ class ConfigurationIterator:
     def __init__(self, sentence):
         self.sentence = deepcopy(sentence)
         self.configuration = Configuration(
-            sentence=self.sentence,
-            contextualized_input=None,
-            model=None
+            sentence=self.sentence, contextualized_input=None, model=None
         )
 
     def __next__(self):
@@ -151,10 +141,7 @@ class ConfigurationIterator:
     def _get_next_configuration(configuration):
         actions = ConfigurationIterator._get_actions(configuration)
         costs, shift_case = configuration.get_transition_costs(actions)
-        valid_actions = [
-            action for action in actions
-            if costs[action.transition] == 0
-        ]
+        valid_actions = [action for action in actions if costs[action.transition] == 0]
 
         best_action = random.choice(valid_actions)
         configuration.update_dynamic_oracle(best_action, shift_case)
@@ -166,29 +153,17 @@ class ConfigurationIterator:
     def _get_actions(configuration):
         actions = []
         if configuration.shift_conditions:
-            actions.append(
-                Action(
-                    relation=None,
-                    transition=T.SHIFT,
-                    score=1.0
-                )
-            )
+            actions.append(Action(relation=None, transition=T.SHIFT, score=1.0))
 
         if configuration.swap_conditions:
-            actions.append(
-                Action(
-                    relation=None,
-                    transition=T.SWAP,
-                    score=1.0
-                )
-            )
+            actions.append(Action(relation=None, transition=T.SWAP, score=1.0))
 
         if configuration.left_arc_conditions:
             actions.append(
                 Action(
                     relation=configuration.top_stack_token.relation,
                     transition=T.LEFT_ARC,
-                    score=1.0
+                    score=1.0,
                 )
             )
 
@@ -197,7 +172,7 @@ class ConfigurationIterator:
                 Action(
                     relation=configuration.top_stack_token.relation,
                     transition=T.RIGHT_ARC,
-                    score=1.0
+                    score=1.0,
                 )
             )
 

@@ -5,7 +5,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class ExternalEmbeddings(LoggerMixin):
-
     def __init__(self, path, vendor="glove"):
         if vendor == "glove":
             self.token_to_embedding = self._load_glove(path)
@@ -27,9 +26,9 @@ class ExternalEmbeddings(LoggerMixin):
 
     def get_weight_matrix(self, vocabulary, device="cpu"):
         embeddings = [
-            np.random.rand(self.dim),           # OOV
-            np.zeros(self.dim, dtype=float),    # PAD
-            np.random.rand(self.dim),           # NUM
+            np.random.rand(self.dim),  # OOV
+            np.zeros(self.dim, dtype=float),  # PAD
+            np.random.rand(self.dim),  # NUM
         ]
 
         for token, id_ in sorted(vocabulary._item_to_id.items(), key=lambda x: x[1]):
@@ -43,9 +42,7 @@ class ExternalEmbeddings(LoggerMixin):
 
         token_embedding_weights = torch.from_numpy(np_embeddings).float().to(device)
 
-        return torch.nn.Parameter(
-            token_embedding_weights, requires_grad=True
-        )
+        return torch.nn.Parameter(token_embedding_weights, requires_grad=True)
 
     @property
     def vocab(self):

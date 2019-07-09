@@ -36,29 +36,23 @@ class Evaluator(LoggerMixin):
         self.callback_handler.on_eval_begin(epoch=epoch)
 
         train_las, train_uas = self._evaluate_corpus(
-            self.treebank.train_corpus, corpus_type="train")
+            self.treebank.train_corpus, corpus_type="train"
+        )
 
         dev_las, dev_uas = self._evaluate_corpus(
-            self.treebank.dev_corpus, corpus_type="dev")
+            self.treebank.dev_corpus, corpus_type="dev"
+        )
 
         test_las = test_uas = None
         if self.treebank.test_corpus:
             test_las, test_uas = self._evaluate_corpus(
-                self.treebank.test_corpus, corpus_type="test")
+                self.treebank.test_corpus, corpus_type="test"
+            )
 
         scores = {
-            "train": {
-                "las": train_las,
-                "uas": train_uas
-            },
-            "dev": {
-                "las": dev_las,
-                "uas": dev_uas
-            },
-            "test": {
-                "las": test_las,
-                "uas": test_uas
-            }
+            "train": {"las": train_las, "uas": train_uas},
+            "dev": {"las": dev_las, "uas": dev_uas},
+            "test": {"las": test_las, "uas": test_uas},
         }
 
         self.callback_handler.on_eval_end(scores=scores)
@@ -74,15 +68,20 @@ class Evaluator(LoggerMixin):
         iterator = CorpusIterator(corpus, batch_size=self.batch_size, train=False)
         for i, batch in enumerate(iterator):
             self.callback_handler.on_batch_begin(
-                batch=i, batch_data=batch, corpus_type=corpus_type)
+                batch=i, batch_data=batch, corpus_type=corpus_type
+            )
 
             pred, gold = self._run_prediction_batch(batch)
             pred_sentences += pred
             gold_sentences += gold
 
             self.callback_handler.on_batch_end(
-                batch=i, batch_data=batch, gold_sentences=gold, pred_sentences=pred,
-                corpus_type=corpus_type)
+                batch=i,
+                batch_data=batch,
+                gold_sentences=gold,
+                pred_sentences=pred,
+                corpus_type=corpus_type,
+            )
 
         las, uas = self.eval_function(gold_sentences, pred_sentences)
 
@@ -91,7 +90,7 @@ class Evaluator(LoggerMixin):
             uas=uas,
             gold_sentences=gold_sentences,
             pred_sentences=pred_sentences,
-            corpus_type=corpus_type
+            corpus_type=corpus_type,
         )
 
         return las, uas
@@ -107,7 +106,7 @@ class Evaluator(LoggerMixin):
         sentence_lengths = torch.tensor(
             data=[len(sentence) for sentence in sentences],
             dtype=torch.int64,
-            device=self.model.device
+            device=self.model.device,
         )
 
         contextualized_tokens_batch = self.model.get_contextualized_input(
@@ -115,10 +114,15 @@ class Evaluator(LoggerMixin):
         )
 
         configurations = [
-            Configuration(sentence, contextualized_input, self.model,
-                          sentence_features=sentence_feature)
-            for contextualized_input, sentence, sentence_feature in
-            zip(contextualized_tokens_batch, sentences, sentence_features)
+            Configuration(
+                sentence,
+                contextualized_input,
+                self.model,
+                sentence_features=sentence_feature,
+            )
+            for contextualized_input, sentence, sentence_feature in zip(
+                contextualized_tokens_batch, sentences, sentence_features
+            )
         ]
 
         while configurations:
@@ -134,10 +138,7 @@ class Evaluator(LoggerMixin):
 
                 if not configuration.swap_possible:
                     # Exclude swap options
-                    actions = [
-                        action for action in actions
-                        if action.transition != T.SWAP
-                    ]
+                    actions = [action for action in actions if action.transition != T.SWAP]
 
                 assert actions
                 best_action = Configuration.get_best_action(actions)

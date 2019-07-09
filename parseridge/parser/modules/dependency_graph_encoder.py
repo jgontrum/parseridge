@@ -7,8 +7,15 @@ from parseridge.parser.modules.utils import add_padding
 
 
 class DependencyGraphEncoder(Module):
-    def __init__(self, input_size, output_size, relations, relation_embedding_size=64,
-                 num_layers=1, device="cpu"):
+    def __init__(
+        self,
+        input_size,
+        output_size,
+        relations,
+        relation_embedding_size=64,
+        num_layers=1,
+        device="cpu",
+    ):
         super(DependencyGraphEncoder, self).__init__()
         self.device = device
 
@@ -24,7 +31,7 @@ class DependencyGraphEncoder(Module):
 
         self.relation_embedding = nn.Embedding(
             num_embeddings=len(self.relations.relations),  # Number of relation labels
-            embedding_dim=self.relation_embedding_size
+            embedding_dim=self.relation_embedding_size,
         )
 
         self.rnn = nn.LSTM(
@@ -32,7 +39,7 @@ class DependencyGraphEncoder(Module):
             hidden_size=self.lstm_output_size,
             num_layers=self.num_layers,
             bidirectional=True,
-            batch_first=True
+            batch_first=True,
         )
 
         self.token_padding = torch.zeros(self.input_size, device=self.device)
@@ -41,8 +48,10 @@ class DependencyGraphEncoder(Module):
     def get_initial_state(self, batch_size):
         # Initial state, no transition has been made so far. Return a zero filled
         # tensor and initialize the hidden state / cell state tensors.
-        return (torch.zeros((batch_size, 1, self.output_size), device=self.device),
-                self.init_hidden(batch_size))
+        return (
+            torch.zeros((batch_size, 1, self.output_size), device=self.device),
+            self.init_hidden(batch_size),
+        )
 
     def _get_nodes_from_sentence(self, sentence, contextualized_tokens):
         for token in sentence:
@@ -52,8 +61,11 @@ class DependencyGraphEncoder(Module):
 
             token_representation = contextualized_tokens[token.id]
 
-            head_representation = contextualized_tokens[token.head] \
-                if token.head is not None else self.token_padding
+            head_representation = (
+                contextualized_tokens[token.head]
+                if token.head is not None
+                else self.token_padding
+            )
 
             assert head_representation.size()[0] == self.token_padding.size()[0]
 
@@ -71,7 +83,9 @@ class DependencyGraphEncoder(Module):
             assert dependents_representation.size()[0] == self.token_padding.size()[0]
 
             relation_representation = self.relation_embedding(
-                torch.tensor(self.relations.signature.get_id(token.relation), device=self.device)
+                torch.tensor(
+                    self.relations.signature.get_id(token.relation), device=self.device
+                )
             )
             assert relation_representation.size()[0] == self.relation_embedding_size
 
@@ -79,7 +93,7 @@ class DependencyGraphEncoder(Module):
                 token_representation,
                 head_representation,
                 dependents_representation,
-                relation_representation
+                relation_representation,
             )
 
             yield torch.cat(node_representation, dim=0)
@@ -87,7 +101,8 @@ class DependencyGraphEncoder(Module):
     def forward(self, predicted_sentence_batch, contextualized_tokens_batch):
         partial_graph_batch = []
         for sentence, contextualized_tokens in zip(
-                predicted_sentence_batch, contextualized_tokens_batch):
+            predicted_sentence_batch, contextualized_tokens_batch
+        ):
             partial_graph = self._get_nodes_from_sentence(sentence, contextualized_tokens)
             partial_graph = list(partial_graph)
             partial_graph_batch.append(partial_graph)
@@ -97,12 +112,14 @@ class DependencyGraphEncoder(Module):
             sorted(
                 range(len(partial_graph_batch)),
                 key=lambda k: len(partial_graph_batch[k]),
-                reverse=True
-            ), device=self.device
+                reverse=True,
+            ),
+            device=self.device,
         )
 
         partial_graph_batch = sorted(
-            partial_graph_batch, key=lambda graph: len(graph), reverse=True)
+            partial_graph_batch, key=lambda graph: len(graph), reverse=True
+        )
 
         # Pad the batch of partial graphs
         graph_lengths = [max(1, len(graph)) for graph in partial_graph_batch]
@@ -126,15 +143,12 @@ class DependencyGraphEncoder(Module):
         input_packed = pack_padded_sequence(
             partial_graph_batch_padded,
             torch.tensor(graph_lengths, dtype=torch.int64, device=self.device),
-            batch_first=True
+            batch_first=True,
         )
 
         packed_outputs, hidden = self.rnn(input_packed)
 
-        outputs, _ = pad_packed_sequence(
-            packed_outputs,
-            batch_first=True
-        )
+        outputs, _ = pad_packed_sequence(packed_outputs, batch_first=True)
 
         # Get the first state of each graph. Since the RNN is bi-directional,
         # this is as good as the last state, but way easier to extract.

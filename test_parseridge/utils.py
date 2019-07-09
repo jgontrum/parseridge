@@ -26,9 +26,13 @@ def tokens_are_equal(token1, token2):
         assert token1.id == token2.id, f"'{token1.id}' != '{token2.id}'"
         assert token1.form == token2.form, f"'{token1.form}' != '{token2.form}'"
         assert token1.head == token2.head, f"'{token1.head}' != '{token2.head}'"
-        assert token1.relation == token2.relation, f"'{token1.relation}' != '{token2.relation}'"
+        assert (
+            token1.relation == token2.relation
+        ), f"'{token1.relation}' != '{token2.relation}'"
         assert token1.is_root == token2.is_root, f"'{token1.is_root}' != '{token2.is_root}'"
-        assert token1.dependents == token2.dependents, f"'{token1.dependents}' != '{token2.dependents}'"
+        assert (
+            token1.dependents == token2.dependents
+        ), f"'{token1.dependents}' != '{token2.dependents}'"
         assert token1.lemma == token2.lemma, f"'{token1.lemma}' != '{token2.lemma}'"
         assert token1.upostag == token2.upostag, f"'{token1.upostag}' != '{token2.upostag}'"
         assert token1.xpostag == token2.xpostag, f"'{token1.xpostag}' != '{token2.xpostag}'"
@@ -52,7 +56,7 @@ def generate_actions(transition, relations, best_relations):
 
 def set_weights_to_one(model):
     for name, param in model.named_parameters():
-        if 'bias' in name:
+        if "bias" in name:
             nn.init.constant_(param, 0.0)
-        elif 'weight' in name:
+        elif "weight" in name:
             nn.init.constant_(param, 1.0)

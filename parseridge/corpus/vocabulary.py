@@ -18,7 +18,7 @@ class Vocabulary(Signature):
         self.embeddings_vocab = embeddings_vocab
 
     def _normalize(self, word):
-        return 'NUM' if self.number_regex.match(word) else word.lower()
+        return "NUM" if self.number_regex.match(word) else word.lower()
 
     def add(self, word):
         word = self._normalize(word)

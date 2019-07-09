@@ -16,25 +16,36 @@ class Decoder(Module):
             hidden_size=self.output_size,
             num_layers=self.num_layers,
             bidirectional=False,
-            batch_first=True
+            batch_first=True,
         )
 
     def init_hidden(self, batch_size):
-        # See https://discuss.pytorch.org/t/correct-way-to-declare-hidden-and-cell-states-of-lstm/15745/2
-        template_tensor = next(self.parameters()).data
+        # See https://discuss.pytorch.org/t/
+        # correct-way-to-declare-hidden-and-cell-states-of-lstm/15745/2
         hidden_state = torch.zeros(
-            self.num_layers, batch_size, self.output_size, device=self.device,
-            requires_grad=True
+            self.num_layers,
+            batch_size,
+            self.output_size,
+            device=self.device,
+            requires_grad=True,
         )
         cell_state = torch.zeros(
-            self.num_layers, batch_size, self.output_size, device=self.device,
-            requires_grad=True
+            self.num_layers,
+            batch_size,
+            self.output_size,
+            device=self.device,
+            requires_grad=True,
         )
 
         return hidden_state, cell_state
 
-    def forward(self, context_vector_batch, prev_hidden_state_batch,
-                prev_cell_state_batch, batch_size=None):
+    def forward(
+        self,
+        context_vector_batch,
+        prev_hidden_state_batch,
+        prev_cell_state_batch,
+        batch_size=None,
+    ):
 
         if context_vector_batch is None or prev_hidden_state_batch is None:
             prev_hidden_state_batch, prev_cell_state_batch = self.init_hidden(batch_size)
@@ -43,6 +54,7 @@ class Decoder(Module):
             prev_cell_state_batch = prev_cell_state_batch.transpose(0, 1)
 
         output, (hidden_state, cell_state) = self.rnn(
-            context_vector_batch, (prev_hidden_state_batch, prev_cell_state_batch))
+            context_vector_batch, (prev_hidden_state_batch, prev_cell_state_batch)
+        )
 
         return output, (hidden_state, cell_state)

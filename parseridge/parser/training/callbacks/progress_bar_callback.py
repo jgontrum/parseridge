@@ -22,20 +22,22 @@ class ProgressBarCallback(Callback):
         self.num_epochs = None
         self.current_epoch = None
 
-    def on_train_begin(self, epochs: int, hyper_parameters: Hyperparameters,
-                       **kwargs: Any) -> None:
+    def on_train_begin(
+        self, epochs: int, hyper_parameters: Hyperparameters, **kwargs: Any
+    ) -> None:
         self.batch_size = hyper_parameters.batch_size
         self.num_epochs = epochs
 
-    def on_epoch_begin(self, epoch: int, num_batches: int, training_data: Any,
-                       **kwargs: Any) -> None:
+    def on_epoch_begin(
+        self, epoch: int, num_batches: int, training_data: Any, **kwargs: Any
+    ) -> None:
         self.current_epoch = epoch
 
         self._pbar = tqdm(total=len(training_data))
 
-        self._pbar.set_description(self.template.format(
-            epoch=self.current_epoch, epochs=self.num_epochs, loss=0
-        ))
+        self._pbar.set_description(
+            self.template.format(epoch=self.current_epoch, epochs=self.num_epochs, loss=0)
+        )
 
     def on_epoch_end(self, epoch_loss: float, **kwargs: Any) -> None:
         self._pbar.set_description(
@@ -49,7 +51,7 @@ class ProgressBarCallback(Callback):
         if batch_loss is not None:
             self.prev_loss.append(batch_loss)
             avg_loss = sum(self.prev_loss) / len(self.prev_loss)
-            self.prev_loss = self.prev_loss[-self.moving_average:]
+            self.prev_loss = self.prev_loss[-self.moving_average :]
         else:
             if self.prev_loss:
                 avg_loss = sum(self.prev_loss) / len(self.prev_loss)

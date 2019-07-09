@@ -11,7 +11,6 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Corpus(Dataset, LoggerMixin):
-
     def __init__(self, sentences, vocabulary, device="cpu"):
         """
         A Corpus stores all the sentences and their numeric representations.
@@ -61,9 +60,11 @@ class Corpus(Dataset, LoggerMixin):
         self.logger.info(f"The corpus contains {self.num_oov_tokens} OOV tokens.")
         self.logger.info("Copying sentence representation to device memory...")
         self.sentence_tensors = torch.tensor(
-            self.sentence_tensors, dtype=torch.long, device=self.device)
+            self.sentence_tensors, dtype=torch.long, device=self.device
+        )
         self.sentence_token_freq_tensors = torch.tensor(
-            self.sentence_token_freq_tensors, dtype=torch.float, device=self.device)
+            self.sentence_token_freq_tensors, dtype=torch.float, device=self.device
+        )
 
     def _pad_list(self, list_, max_sentence_length):
         """
@@ -114,9 +115,17 @@ class Corpus(Dataset, LoggerMixin):
 
 
 class CorpusIterator(LoggerMixin):
-
-    def __init__(self, corpus, batch_size=8, shuffle=False, drop_last=False, train=False,
-                 oov_probability=0.25, group_by_length=True, token_dropout=0.1):
+    def __init__(
+        self,
+        corpus,
+        batch_size=8,
+        shuffle=False,
+        drop_last=False,
+        train=False,
+        oov_probability=0.25,
+        group_by_length=True,
+        token_dropout=0.1,
+    ):
         """
         Helper class to iterate over the batches produced by the Corpus class.
         Most importantly, it has the ability to shuffle the order of the batches.
@@ -150,7 +159,7 @@ class CorpusIterator(LoggerMixin):
             self.sentence_tensors = self.replace_infrequent_words_with_oov(
                 self.sentence_tensors,
                 self.corpus.sentence_token_freq_tensors,
-                self.oov_probability
+                self.oov_probability,
             )
 
         # As a regularization technique, we randomly replace tokens with the OOV id.
@@ -159,7 +168,8 @@ class CorpusIterator(LoggerMixin):
         # probability, as it is applied to the whole data, including the padding.
         if train and token_dropout > 0:
             self.sentence_tensors = self.apply_token_dropout(
-                self.sentence_tensors, p=token_dropout)
+                self.sentence_tensors, p=token_dropout
+            )
 
         # If len(self.corpus) % self.batch_size != 0, one batch will be slightly
         # larger / smaller than the other ones. Use drop_last to ignore this one batch.
@@ -184,8 +194,9 @@ class CorpusIterator(LoggerMixin):
                 random.shuffle(self._order)
 
     @staticmethod
-    def replace_infrequent_words_with_oov(sentence_tensors, frequency_tensors,
-                                          oov_probability):
+    def replace_infrequent_words_with_oov(
+        sentence_tensors, frequency_tensors, oov_probability
+    ):
         # Compute the relative frequency
         oov_probability_tensor = torch.zeros_like(frequency_tensors).fill_(oov_probability)
         frequency_tensors = frequency_tensors / (frequency_tensors + oov_probability_tensor)
@@ -205,8 +216,7 @@ class CorpusIterator(LoggerMixin):
     @staticmethod
     def group_batches_by_length(sentences, batch_size, shuffle):
         sentences_sorted = [
-            sentence.id for sentence in
-            sorted(sentences, key=lambda s: len(s))
+            sentence.id for sentence in sorted(sentences, key=lambda s: len(s))
         ]
 
         # Make the list dividable by batch_size
@@ -232,7 +242,7 @@ class CorpusIterator(LoggerMixin):
             raise StopIteration
         else:
             start = self._iter * self.batch_size
-            indices = self._order[start:start + self.batch_size]
+            indices = self._order[start : start + self.batch_size]
 
             # Ignore an incomplete batch at the end if wished
             if len(indices) < self.batch_size and self.drop_last:
@@ -242,9 +252,7 @@ class CorpusIterator(LoggerMixin):
 
             # Sort the indices in descending order - this is required for
             # batch processing in PyTorch.
-            batch_sentences = sorted(
-                batch_sentences, key=lambda s: len(s), reverse=True
-            )
+            batch_sentences = sorted(batch_sentences, key=lambda s: len(s), reverse=True)
             indices_sorted = [sentence.id for sentence in batch_sentences]
 
             batch_tensors = self.sentence_tensors[indices_sorted]

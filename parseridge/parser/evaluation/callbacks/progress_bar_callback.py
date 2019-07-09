@@ -16,7 +16,8 @@ class EvalProgressBarCallback(EvalCallback):
 
     def on_epoch_begin(self, dataset: Any, corpus_type: str, **kwargs: Any) -> None:
         self._pbar = tqdm(
-            total=len(dataset), desc=f"Predicting '{corpus_type}'", leave=False)
+            total=len(dataset), desc=f"Predicting '{corpus_type}'", leave=False
+        )
 
     def on_epoch_end(self, **kwargs: Any) -> None:
         self._pbar.close()

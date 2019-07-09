@@ -1,4 +1,3 @@
-from itertools import chain
 from random import random
 
 import torch
@@ -8,9 +7,15 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Configuration(LoggerMixin):
-
-    def __init__(self, sentence, contextualized_input, model, predict=True, device=None,
-                 sentence_features=None):
+    def __init__(
+        self,
+        sentence,
+        contextualized_input,
+        model,
+        predict=True,
+        device=None,
+        sentence_features=None,
+    ):
         """
         The Configuration class is used to store the information about a
         parser configuration like stack, buffer, predictions etc.
@@ -37,8 +42,9 @@ class Configuration(LoggerMixin):
         self.sentence_features = sentence_features
         self.scores = {}
         self.stack = []
-        self.buffer = [token.id for token in sentence][1:] + \
-                      [sentence[0].id]  # Move the root token to the end
+        self.buffer = [token.id for token in sentence][1:] + [
+            sentence[0].id
+        ]  # Move the root token to the end
         self.num_swap = 0  # Used in prediction
 
         self.actions_history = []
@@ -57,8 +63,9 @@ class Configuration(LoggerMixin):
             # In evaluation mode, make sure to avoid the multiple
             # root problem: Disallow left-arc from root
             # if stack has more than one element
-            left_arc_conditions = left_arc_conditions and not \
-                (self.top_buffer_token.is_root and len(self.stack) > 1)
+            left_arc_conditions = left_arc_conditions and not (
+                self.top_buffer_token.is_root and len(self.stack) > 1
+            )
 
         return left_arc_conditions
 
@@ -72,8 +79,7 @@ class Configuration(LoggerMixin):
 
     @property
     def swap_conditions(self):
-        return len(self.stack) > 0 and \
-               self.top_stack_token.id < self.top_buffer_token.id
+        return len(self.stack) > 0 and self.top_stack_token.id < self.top_buffer_token.id
 
     def predict_actions(self):
         """
@@ -101,15 +107,14 @@ class Configuration(LoggerMixin):
             if self.in_training_mode:
                 # Add actions using the correct relation for the current step
                 gold_relation = self.top_stack_token.relation
-                gold_relation_index = \
-                    self.model.relations.signature.get_id(gold_relation)
+                gold_relation_index = self.model.relations.signature.get_id(gold_relation)
 
                 if self.left_arc_conditions:
                     actions.append(
                         Action(
                             relation=gold_relation,
                             transition=T.LEFT_ARC,
-                            score=self.scores[T.LEFT_ARC][gold_relation_index]
+                            score=self.scores[T.LEFT_ARC][gold_relation_index],
                         )
                     )
 
@@ -118,7 +123,7 @@ class Configuration(LoggerMixin):
                         Action(
                             relation=gold_relation,
                             transition=T.RIGHT_ARC,
-                            score=self.scores[T.RIGHT_ARC][gold_relation_index]
+                            score=self.scores[T.RIGHT_ARC][gold_relation_index],
                         )
                     )
 
@@ -138,11 +143,7 @@ class Configuration(LoggerMixin):
                 best_label = self.model.relations.signature.get_item(best_index)
 
                 actions.append(
-                    Action(
-                        relation=best_label,
-                        transition=T.LEFT_ARC,
-                        score=best_score
-                    )
+                    Action(relation=best_label, transition=T.LEFT_ARC, score=best_score)
                 )
 
             if self.right_arc_conditions:
@@ -161,34 +162,18 @@ class Configuration(LoggerMixin):
                 best_label = self.model.relations.signature.get_item(best_index)
 
                 actions.append(
-                    Action(
-                        relation=best_label,
-                        transition=T.RIGHT_ARC,
-                        score=best_score
-                    )
+                    Action(relation=best_label, transition=T.RIGHT_ARC, score=best_score)
                 )
 
         if self.shift_conditions:
             tensor = self.scores[T.SHIFT][0]
 
-            actions.append(
-                Action(
-                    relation=None,
-                    transition=T.SHIFT,
-                    score=tensor
-                )
-            )
+            actions.append(Action(relation=None, transition=T.SHIFT, score=tensor))
 
         if self.swap_conditions:
             tensor = self.scores[T.SWAP][0]
 
-            actions.append(
-                Action(
-                    relation=None,
-                    transition=T.SWAP,
-                    score=tensor
-                )
-            )
+            actions.append(Action(relation=None, transition=T.SWAP, score=tensor))
 
         return actions
 
@@ -216,24 +201,20 @@ class Configuration(LoggerMixin):
         # Group actions by transition
         actions = {
             transition: [
-                action for action in actions_list if
-                action.transition == transition
+                action for action in actions_list if action.transition == transition
             ]
             for transition in Transition
         }
 
         # Set the cost to 1 by default
-        costs = {
-            transition: 1
-            for transition in Transition
-        }
+        costs = {transition: 1 for transition in Transition}
         shift_case = 0
 
         if actions[T.LEFT_ARC] and self.stack and self.buffer:
             cost = len(self.top_stack_token.dependents)
             cost += int(
-                self.top_stack_token.parent.id != self.top_buffer_token.id and
-                self.top_stack_token.id in self.top_stack_token.parent.dependents
+                self.top_stack_token.parent.id != self.top_buffer_token.id
+                and self.top_stack_token.id in self.top_stack_token.parent.dependents
             )
 
             costs[T.LEFT_ARC] = cost
@@ -243,8 +224,8 @@ class Configuration(LoggerMixin):
 
             cost = len(self.top_stack_token.dependents)
             cost += int(
-                self.top_stack_token.parent != second_stack_token and
-                self.top_stack_token.id in self.top_stack_token.parent.dependents
+                self.top_stack_token.parent != second_stack_token
+                and self.top_stack_token.id in self.top_stack_token.parent.dependents
             )
 
             costs[T.RIGHT_ARC] = cost
@@ -253,9 +234,10 @@ class Configuration(LoggerMixin):
             rest_buffer_tokens = self.sentence[self.buffer[1:]]
 
             not_in_projected_order = [
-                token for token in rest_buffer_tokens
+                token
+                for token in rest_buffer_tokens
                 if token.projective_order < self.top_buffer_token.projective_order
-                   and token.id > self.top_buffer_token.id
+                and token.id > self.top_buffer_token.id
             ]
 
             if not_in_projected_order:
@@ -266,19 +248,18 @@ class Configuration(LoggerMixin):
                 stack_not_empty = len(self.stack) > 0
 
                 buffer_dependents_in_stack = [
-                    token_id for token_id in self.top_buffer_token.dependents
+                    token_id
+                    for token_id in self.top_buffer_token.dependents
                     if token_id in self.stack
                 ]
 
                 buffer_parent_in_stack = (
-                        self.top_buffer_token.parent.id in self.stack[:-1]
-                        and self.top_buffer_token.id
-                        in self.top_buffer_token.parent.dependents
+                    self.top_buffer_token.parent.id in self.stack[:-1]
+                    and self.top_buffer_token.id in self.top_buffer_token.parent.dependents
                 )
 
-                costs[T.SHIFT] = (
-                        len(buffer_dependents_in_stack) +
-                        int(stack_not_empty and buffer_parent_in_stack)
+                costs[T.SHIFT] = len(buffer_dependents_in_stack) + int(
+                    stack_not_empty and buffer_parent_in_stack
                 )
 
                 shift_case = 2
@@ -287,8 +268,7 @@ class Configuration(LoggerMixin):
             first_stack_token = self.sentence[self.stack[-1]]
             first_buffer_token = self.sentence[self.buffer[0]]
 
-            if (first_stack_token.projective_order >
-                    first_buffer_token.projective_order):
+            if first_stack_token.projective_order > first_buffer_token.projective_order:
                 # SWAP has priority, so disable all other options
                 costs = {k: 1 for k in costs.keys()}
                 costs[T.SWAP] = 0
@@ -319,9 +299,9 @@ class Configuration(LoggerMixin):
         wrong_actions = []
         for action in actions:
             if costs[action.transition] != 0 or (
-                    action.transition != T.SHIFT and
-                    action.transition != T.SWAP and
-                    action.relation != self.top_stack_token.relation
+                action.transition != T.SHIFT
+                and action.transition != T.SWAP
+                and action.relation != self.top_stack_token.relation
             ):
                 wrong_actions.append(action)
 
@@ -377,17 +357,15 @@ class Configuration(LoggerMixin):
         # any chance of making a SWAP transition, skip this step.
 
         best_action = best_valid_action
-        no_swap_possible = (
-                costs[T.SWAP] != 0
-                and best_wrong_action.transition != T.SWAP
-        )
+        no_swap_possible = costs[T.SWAP] != 0 and best_wrong_action.transition != T.SWAP
 
         is_valid_transition = best_wrong_action.transition is not None
 
-        if (no_swap_possible
-                and is_valid_transition
-                and random() <= error_probability
-                and best_action.np_score > best_wrong_action.np_score + margin_threshold
+        if (
+            no_swap_possible
+            and is_valid_transition
+            and random() <= error_probability
+            and best_action.np_score > best_wrong_action.np_score + margin_threshold
         ):
             best_action = best_wrong_action
 
@@ -413,18 +391,19 @@ class Configuration(LoggerMixin):
             first_buffer_token_parent = first_buffer_token.parent
 
             parent_in_stack = first_buffer_token_parent.id in self.stack[:-1]
-            token_is_parent_dep = first_buffer_token.id \
-                                  in first_buffer_token_parent.dependents
+            token_is_parent_dep = (
+                first_buffer_token.id in first_buffer_token_parent.dependents
+            )
 
             # Remove the parent from the first buffer token if in the stack
             if parent_in_stack and token_is_parent_dep:
-                first_buffer_token_parent.dependents.remove(
-                    first_buffer_token.id)
+                first_buffer_token_parent.dependents.remove(first_buffer_token.id)
 
             # Remove dependents of the first buffer token that are in the stack
             first_buffer_token.dependents = [
-                dep_id for dep_id in first_buffer_token.dependents if
-                dep_id not in self.stack
+                dep_id
+                for dep_id in first_buffer_token.dependents
+                if dep_id not in self.stack
             ]
 
         elif action.transition in [T.LEFT_ARC, T.RIGHT_ARC] and self.stack:
@@ -433,8 +412,7 @@ class Configuration(LoggerMixin):
 
             # Remove the token from its parent's dependents list
             if first_buffer_token.id in first_buffer_token.parent.dependents:
-                first_buffer_token.parent.dependents.remove(
-                    first_buffer_token.id)
+                first_buffer_token.parent.dependents.remove(first_buffer_token.id)
 
     def apply_transition(self, action):
         """

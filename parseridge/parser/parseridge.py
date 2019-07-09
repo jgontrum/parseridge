@@ -39,15 +39,38 @@ class Parseridge(LoggerMixin):
         self.id_ = str(self.time_prefix())
         self.device = device
 
-    def fit(self, train_sentences, dev_sentences, num_stack=3, num_buffer=1,
-            embedding_size=100, lstm_hidden_size=125, lstm_layers=2,
-            relation_mlp_layers=None, transition_mlp_layers=None, margin_threshold=2.5,
-            error_probability=0.1, oov_probability=0.25, token_dropout=0.01,
-            lstm_dropout=0.33, mlp_dropout=0.25, batch_size=4, pred_batch_size=512,
-            num_epochs=3, gradient_clipping=10.0, weight_decay=0.0, learning_rate=0.001,
-            update_size=50, loss_factor=0.75, loss_strategy="avg", google_sheet_id=None,
-            google_sheet_auth_file=None, embeddings=None, loss_function="CrossEntropy",
-            params=None):
+    def fit(
+        self,
+        train_sentences,
+        dev_sentences,
+        num_stack=3,
+        num_buffer=1,
+        embedding_size=100,
+        lstm_hidden_size=125,
+        lstm_layers=2,
+        relation_mlp_layers=None,
+        transition_mlp_layers=None,
+        margin_threshold=2.5,
+        error_probability=0.1,
+        oov_probability=0.25,
+        token_dropout=0.01,
+        lstm_dropout=0.33,
+        mlp_dropout=0.25,
+        batch_size=4,
+        pred_batch_size=512,
+        num_epochs=3,
+        gradient_clipping=10.0,
+        weight_decay=0.0,
+        learning_rate=0.001,
+        update_size=50,
+        loss_factor=0.75,
+        loss_strategy="avg",
+        google_sheet_id=None,
+        google_sheet_auth_file=None,
+        embeddings=None,
+        loss_function="CrossEntropy",
+        params=None,
+    ):
 
         # The vocabulary maps tokens to integer ids, while the relations object
         # manages the relation labels and their position in the MLP output.
@@ -57,7 +80,8 @@ class Parseridge(LoggerMixin):
         if embeddings:
             if embedding_size != embeddings.dim:
                 self.logger.warning(
-                    "Overwriting embedding dimensions to match external embeddings.")
+                    "Overwriting embedding dimensions to match external embeddings."
+                )
                 embedding_size = embeddings.dim
 
         # Generate the training examples based on the dependency graphs in the train data
@@ -67,14 +91,14 @@ class Parseridge(LoggerMixin):
             relations=relations,
             oov_probability=oov_probability,
             error_probability=error_probability,
-            device=self.device
+            device=self.device,
         )
 
         self.train_dataloader = DataLoader(
             self.train_dataset,
             batch_size=batch_size,
             shuffle=True,
-            collate_fn=ConLLDataset.collate_batch
+            collate_fn=ConLLDataset.collate_batch,
         )
 
         relations.signature.read_only()
@@ -99,7 +123,7 @@ class Parseridge(LoggerMixin):
             lstm_layers=lstm_layers,
             transition_mlp_layers=transition_mlp_layers,
             relation_mlp_layers=relation_mlp_layers,
-            device=self.device
+            device=self.device,
         ).to(self.device)
 
         self.trainer = Trainer(
@@ -109,7 +133,7 @@ class Parseridge(LoggerMixin):
             weight_decay=weight_decay,
             mode=loss_strategy,
             loss_factor=loss_factor,
-            update_size=update_size
+            update_size=update_size,
         )
 
         criterion = Criterion(loss_function=loss_function)
@@ -117,23 +141,22 @@ class Parseridge(LoggerMixin):
         # torch.autograd.set_detect_anomaly(True)
 
         with get_reporter(
-                sheets_id=google_sheet_id,
-                auth_file_path=google_sheet_auth_file,
-                hyper_parameters=params
+            sheets_id=google_sheet_id,
+            auth_file_path=google_sheet_auth_file,
+            hyper_parameters=params,
         ) as self.reporter:
             for epoch in range(num_epochs):
                 t0 = time()
                 self.logger.info(f"Starting epoch #{epoch + 1}...")
 
                 epoch_metric = self._run_epoch(
-                    dataloader=self.train_dataloader,
-                    criterion=criterion,
-                    epoch=epoch + 1
+                    dataloader=self.train_dataloader, criterion=criterion, epoch=epoch + 1
                 )
 
                 # Evaluate on training corpus
                 train_scores = CoNLLEvaluationScript().get_las_score_for_sentences(
-                    *self.predict(train_corpus, batch_size=pred_batch_size))
+                    *self.predict(train_corpus, batch_size=pred_batch_size)
+                )
                 self.logger.info(
                     f"Performance on the training set after {epoch + 1} epochs: "
                     f"LAS: {train_scores['LAS']:.2f} | "
@@ -142,7 +165,8 @@ class Parseridge(LoggerMixin):
 
                 # Evaluate on dev corpus
                 dev_scores = CoNLLEvaluationScript().get_las_score_for_sentences(
-                    *self.predict(dev_corpus, batch_size=pred_batch_size))
+                    *self.predict(dev_corpus, batch_size=pred_batch_size)
+                )
 
                 self.logger.info(
                     f"Performance on the dev set after {epoch + 1} epochs: "
@@ -159,12 +183,13 @@ class Parseridge(LoggerMixin):
                     train_las=train_scores["LAS"],
                     train_uas=train_scores["UAS"],
                     dev_las=dev_scores["LAS"],
-                    dev_uas=dev_scores["UAS"]
+                    dev_uas=dev_scores["UAS"],
                 )
 
                 self.logger.info(
                     f"Finished epoch in "
-                    f"{int(duration / 60)}:{int(duration % 60):01} minutes.")
+                    f"{int(duration / 60)}:{int(duration % 60):01} minutes."
+                )
 
     def _run_epoch(self, dataloader, criterion: Criterion, epoch=None):
         """
@@ -200,7 +225,7 @@ class Parseridge(LoggerMixin):
                 stacks=batch.stacks,
                 stack_lengths=batch.stack_lengths,
                 buffers=batch.buffers,
-                buffer_lengths=batch.buffer_lengths
+                buffer_lengths=batch.buffer_lengths,
             )
 
             # Compute loss. Depending on the chosen loss strategy only a part of the
@@ -213,7 +238,7 @@ class Parseridge(LoggerMixin):
                 wrong_transitions=batch.wrong_transitions,
                 wrong_transitions_lengths=batch.wrong_transitions_lengths,
                 wrong_relations=batch.wrong_relations,
-                wrong_relations_lengths=batch.wrong_relations_lengths
+                wrong_relations_lengths=batch.wrong_relations_lengths,
             )
 
             # Back-propagate
@@ -226,15 +251,10 @@ class Parseridge(LoggerMixin):
             # Log the loss for analytics
             loss_values.append(loss.item())
             if i > 0 and i % 100 == 0 and self.reporter:
-                self.reporter.report_loss(
-                    loss_value=sum(loss_values),
-                    epoch=epoch
-                )
+                self.reporter.report_loss(loss_value=sum(loss_values), epoch=epoch)
                 loss_values = []
 
-            epoch_metric += Metric(
-                loss=loss.item()
-            )
+            epoch_metric += Metric(loss=loss.item())
 
             progress_bar.update(len(batch_tuple[0]))
 
@@ -250,9 +270,7 @@ class Parseridge(LoggerMixin):
 
         iterator = CorpusIterator(corpus, batch_size=batch_size, train=False)
         with tqdm(
-                total=len(corpus),
-                desc="Predicting sentences...",
-                leave=not remove_pbar
+            total=len(corpus), desc="Predicting sentences...", leave=not remove_pbar
         ) as pbar:
             for batch in iterator:
                 pred, gold = self._run_prediction_batch(batch)
@@ -273,23 +291,28 @@ class Parseridge(LoggerMixin):
 
         sentence_lengths = [len(sentence) for sentence in sentences]
         sentence_lengths = torch.tensor(
-            sentence_lengths, dtype=torch.int64, device=self.device)
+            sentence_lengths, dtype=torch.int64, device=self.device
+        )
 
         contextualized_tokens_batch = self.model.compute_lstm_output(
             sentence_features, sentence_lengths
         )
 
         configurations = [
-            Configuration(sentence, contextualized_input, self.model,
-                          sentence_features=sentence_feature)
-            for contextualized_input, sentence, sentence_feature in
-            zip(contextualized_tokens_batch, sentences, sentence_features)
+            Configuration(
+                sentence,
+                contextualized_input,
+                self.model,
+                sentence_features=sentence_feature,
+            )
+            for contextualized_input, sentence, sentence_feature in zip(
+                contextualized_tokens_batch, sentences, sentence_features
+            )
         ]
 
         while configurations:
             # Pass the stacks and buffers through the MLPs in one batch
-            configurations, _, _ = self._update_classification_scores(
-                configurations)
+            configurations, _, _ = self._update_classification_scores(configurations)
 
             # The actual computation of the loss must be done sequentially
             for configuration in configurations:
@@ -300,10 +323,7 @@ class Parseridge(LoggerMixin):
 
                 if not configuration.swap_possible:
                     # Exclude swap options
-                    actions = [
-                        action for action in actions
-                        if action.transition != T.SWAP
-                    ]
+                    actions = [action for action in actions if action.transition != T.SWAP]
 
                 assert actions
                 best_action = Configuration.get_best_action(actions)
@@ -333,15 +353,13 @@ class Parseridge(LoggerMixin):
         stacks = [c.stack_tensor for c in configurations]
         stacks_padded = pad_tensor_list(stacks)
         stacks_lengths = torch.tensor(
-            [len(c.stack) for c in configurations],
-            dtype=torch.int64, device=self.device
+            [len(c.stack) for c in configurations], dtype=torch.int64, device=self.device
         )
 
         buffers = [c.buffer_tensor for c in configurations]
         buffers_padded = pad_tensor_list(buffers)
         buffer_lengths = torch.tensor(
-            [len(c.buffer) for c in configurations],
-            dtype=torch.int64, device=self.device
+            [len(c.buffer) for c in configurations], dtype=torch.int64, device=self.device
         )
 
         clf_transitions, clf_relations = self.model(
@@ -351,7 +369,7 @@ class Parseridge(LoggerMixin):
             buffers=buffers_padded,
             buffer_lengths=buffer_lengths,
             stacks=stacks_padded,
-            stack_lengths=stacks_lengths
+            stack_lengths=stacks_lengths,
         )
 
         # Isolate the columns for the transitions
@@ -375,10 +393,12 @@ class Parseridge(LoggerMixin):
 
         # For the left and right arc scores, we're only interested in the
         # two best entries, so we extract then in one go.
-        left_arc_scores_sorted, left_arc_scores_indices = \
-            torch.sort(left_arc_scores_batch, descending=True)
-        right_arc_scores_sorted, right_arc_scores_indices = \
-            torch.sort(right_arc_scores_batch, descending=True)
+        left_arc_scores_sorted, left_arc_scores_indices = torch.sort(
+            left_arc_scores_batch, descending=True
+        )
+        right_arc_scores_sorted, right_arc_scores_indices = torch.sort(
+            right_arc_scores_batch, descending=True
+        )
 
         # Only take the best two items
         left_arc_scores_sorted = left_arc_scores_sorted[:, :2]
@@ -411,13 +431,19 @@ class Parseridge(LoggerMixin):
                     (T.LEFT_ARC, "best_scores_indices"): self.left_arc_scores_indices,
                     T.RIGHT_ARC: self.right_arc_scores,
                     (T.RIGHT_ARC, "best_scores"): self.right_arc_scores_sorted,
-                    (T.RIGHT_ARC, "best_scores_indices"): self.right_arc_scores_indices
+                    (T.RIGHT_ARC, "best_scores_indices"): self.right_arc_scores_indices,
                 }
 
         combinations = zip(
-            configurations, shift_score_batch, swap_score_batch,
-            left_arc_scores_batch, left_arc_scores_indices, left_arc_scores_sorted,
-            right_arc_scores_batch, right_arc_scores_indices, right_arc_scores_sorted
+            configurations,
+            shift_score_batch,
+            swap_score_batch,
+            left_arc_scores_batch,
+            left_arc_scores_indices,
+            left_arc_scores_sorted,
+            right_arc_scores_batch,
+            right_arc_scores_indices,
+            right_arc_scores_sorted,
         )
 
         # Update the result of the classifiers in the configurations

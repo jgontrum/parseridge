@@ -13,22 +13,17 @@ class Attention(Module):
         self.output_size = input_size
 
         self.word_weight = nn.Sequential(
-            nn.Linear(
-                in_features=input_size,
-                out_features=input_size
-            ),
-            nn.Tanh()
+            nn.Linear(in_features=input_size, out_features=input_size), nn.Tanh()
         )
 
         # TODO add cosine or dot product here instead of learning the function
-        self.context_weight = nn.Linear(
-            in_features=input_size,
-            out_features=1
-        )
+        self.context_weight = nn.Linear(in_features=input_size, out_features=1)
 
         initialize_xavier_dynet_(self)
 
-    def forward(self, input: torch.Tensor, mask: torch.Tensor = None, debug=False) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, mask: torch.Tensor = None, debug=False
+    ) -> torch.Tensor:
         word_representations = self.word_weight(input)
 
         similarity_scores_logits = self.context_weight(word_representations)

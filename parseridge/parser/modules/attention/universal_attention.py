@@ -8,16 +8,20 @@ from parseridge.parser.modules.utils import initialize_xavier_dynet_, mask_
 
 
 class UniversalAttention(Attention):
-
     def __init__(self, query_dim: int, query_output_dim: Optional[int] = None, **kwargs):
         super().__init__(
-            query_dim=query_dim, key_dim=query_dim, query_output_dim=query_output_dim,
-            key_output_dim=query_output_dim, **kwargs)
+            query_dim=query_dim,
+            key_dim=query_dim,
+            query_output_dim=query_output_dim,
+            key_output_dim=query_output_dim,
+            **kwargs,
+        )
 
         self.query_param = nn.Parameter(torch.rand(query_dim))
 
-    def forward(self, keys: Tensor, sequence_lengths: Tensor,
-                values: Tensor = None, **kwargs) -> Tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self, keys: Tensor, sequence_lengths: Tensor, values: Tensor = None, **kwargs
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         queries = self.query_param.expand(keys.size(0), -1)
         return super().forward(queries, keys, sequence_lengths, values)
 
@@ -25,26 +29,24 @@ class UniversalAttention(Attention):
 class LinearAttention(Attention):
     def __init__(self, query_dim: int, query_output_dim: Optional[int] = None, **kwargs):
         super().__init__(
-            query_dim=query_dim, key_dim=query_dim, query_output_dim=query_output_dim,
-            key_output_dim=query_output_dim, **kwargs)
+            query_dim=query_dim,
+            key_dim=query_dim,
+            query_output_dim=query_output_dim,
+            key_output_dim=query_output_dim,
+            **kwargs,
+        )
 
         self.learn_input = nn.Sequential(
-            nn.Linear(
-                in_features=query_dim,
-                out_features=query_dim
-            ),
-            nn.Tanh()
+            nn.Linear(in_features=query_dim, out_features=query_dim), nn.Tanh()
         )
 
-        self.similarity_function = nn.Linear(
-            in_features=query_dim,
-            out_features=1
-        )
+        self.similarity_function = nn.Linear(in_features=query_dim, out_features=1)
 
         initialize_xavier_dynet_(self)
 
-    def forward(self, keys: Tensor, sequence_lengths: Tensor,
-                values: Tensor = None, **kwargs) -> Tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self, keys: Tensor, sequence_lengths: Tensor, values: Tensor = None, **kwargs
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         if values is None:
             values = keys
 
