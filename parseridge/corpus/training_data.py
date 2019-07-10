@@ -43,6 +43,7 @@ class ConfigurationItem:
     def __next__(self):
         fields = [v for k, v in self.__dict__.items() if not k.startswith("_")]
         if self._current_iteration >= len(fields):
+            self._current_iteration = 0
             raise StopIteration
         else:
             self._current_iteration += 1
