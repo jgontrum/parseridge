@@ -170,7 +170,9 @@ class BaselineModel(Module):
             batch_padded = padding_batch
         else:
             # Build a mask and expand it over the size of the batch
-            mask = torch.arange(sequence_size)[None, :] < lengths[:, None]
+            mask = (
+                torch.arange(sequence_size, device=self.device)[None, :] < lengths[:, None]
+            )
             mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
 
             batch_padded = torch.where(
@@ -201,7 +203,7 @@ class BaselineModel(Module):
             assert sentence_lengths is not None
             # Pass all sentences through the input encoder to create contextualized
             # token tensors.
-            contextualized_input_batch = self.compute_lstm_output(
+            contextualized_input_batch = self.get_contextualized_input(
                 token_sequences, sentence_lengths
             )
         else:

@@ -21,7 +21,8 @@ class StaticTrainer(Trainer):
     ) -> None:
         if not isinstance(training_data, ConLLDataset):
             raise ValueError(
-                f"The StaticTrainer requires a ConLLDataset object for training."
+                f"The StaticTrainer requires a ConLLDataset object for training, but "
+                f"received a {type(training_data)} object."
             )
 
         hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
@@ -61,11 +62,11 @@ class StaticTrainer(Trainer):
 
         epoch_loss = 0
 
-        for i, batch in enumerate(train_dataloader):
+        for i, batch_data in enumerate(train_dataloader):
             try:
-                batch = ConLLDataset.TrainingBatch(*batch)
+                self.callback_handler.on_batch_begin(batch=i, batch_data=batch_data)
 
-                self.callback_handler.on_batch_begin(batch=i, batch_data=batch)
+                batch = ConLLDataset.TrainingBatch(*batch_data)
 
                 pred_transitions, pred_relations = self.model(
                     stacks=batch.stacks,
@@ -97,7 +98,7 @@ class StaticTrainer(Trainer):
                 self.last_epoch = epoch
 
                 self.callback_handler.on_batch_end(
-                    batch=i, batch_data=batch, batch_loss=loss
+                    batch=i, batch_data=batch_data, batch_loss=loss
                 )
             except StopEpoch:
                 self.logger.info(f"Stopping epoch after {i}/{num_batches} batches.")

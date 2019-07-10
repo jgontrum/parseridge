@@ -27,6 +27,8 @@ class ConfigurationItem:
     wrong_transitions: torch.Tensor
     wrong_relations: torch.Tensor
 
+    _current_iteration: int = 0
+
     def to(self, device) -> "ConfigurationItem":
         new_item = {}
         for k, v in self.__dict__.items():
@@ -34,6 +36,17 @@ class ConfigurationItem:
                 new_item[k] = v.to(device)
 
         return ConfigurationItem(**new_item)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        fields = [v for k, v in self.__dict__.items() if not k.startswith("_")]
+        if self._current_iteration >= len(fields):
+            raise StopIteration
+        else:
+            self._current_iteration += 1
+            return fields[self._current_iteration - 1]
 
 
 @dataclass

@@ -1,3 +1,7 @@
+from dataclasses import dataclass
+from io import StringIO
+from typing import Optional, List
+
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.sentence import Sentence
@@ -5,45 +9,71 @@ from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.utils.logger import LoggerMixin
 
 
+@dataclass
 class Treebank(LoggerMixin):
     """
     Wrapper for multiple corpora and handling of sharing signatures for
     tokens, labels etc. between them.
     """
 
-    def __init__(self, train_io, dev_io, test_io=None, device="cpu"):
-        train_as_string = "".join(train_io)
-        dev_as_string = "".join(dev_io) if dev_io else ""
-        test_as_string = "".join(test_io) if test_io else ""
+    train_io: Optional[StringIO] = None
+    dev_io: Optional[StringIO] = None
+    test_io: Optional[StringIO] = None
 
-        self.logger.info(f"Load training corpus...")
-        train_sentences = list(Sentence.from_conllu(train_as_string))
+    train_sentences: Optional[List[Sentence]] = None
+    dev_sentences: Optional[List[Sentence]] = None
+    test_sentences: Optional[List[Sentence]] = None
 
-        self.vocabulary = Vocabulary()
+    vocabulary: Optional[Vocabulary] = None
+    relations: Optional[Relations] = None
 
-        self.relations = Relations(train_sentences)
+    device: str = "cpu"
 
+    def __post_init__(self):
+        if not self.train_sentences:
+            self.logger.info("Load training corpus...")
+            as_string = "".join(self.train_io)
+            self.train_sentences = list(Sentence.from_conllu(as_string))
+
+        if not self.train_sentences and self.dev_io:
+            self.logger.info("Load development corpus...")
+            as_string = "".join(self.dev_io)
+            self.dev_sentences = list(Sentence.from_conllu(as_string))
+
+        if not self.test_sentences and self.test_io:
+            self.logger.info("Load test corpus...")
+            as_string = "".join(self.test_io)
+            self.test_sentences = list(Sentence.from_conllu(as_string))
+
+        if not self.vocabulary:
+            # Mode 1
+            self.vocabulary = Vocabulary()
+            self.relations = Relations(self.train_sentences)
+        else:
+            # Mode 2
+            self.vocabulary.read_only()
+
+        self.logger.info("Creating corpus objects...")
         self.train_corpus = Corpus(
-            sentences=train_sentences, vocabulary=self.vocabulary, device=device
+            sentences=self.train_sentences, vocabulary=self.vocabulary, device=self.device
         )
 
         self.vocabulary.read_only()
 
-        self.dev_corpus = None
-        if dev_as_string:
-            self.logger.info(f"Loading development corpus...")
-
-            self.dev_corpus = Corpus(
-                sentences=list(Sentence.from_conllu(dev_as_string)),
-                vocabulary=self.vocabulary,
-                device=device,
+        self.dev_corpus = (
+            Corpus(
+                sentences=self.dev_sentences, vocabulary=self.vocabulary, device=self.device
             )
+            if self.dev_sentences
+            else None
+        )
 
-        self.test_corpus = None
-        if test_as_string:
-            self.logger.info(f"Loading test corpus...")
-            self.test_corpus = Corpus(
-                sentences=list(Sentence.from_conllu(test_as_string)),
+        self.test_corpus = (
+            Corpus(
+                sentences=self.test_sentences,
                 vocabulary=self.vocabulary,
-                device=device,
+                device=self.device,
             )
+            if self.test_sentences
+            else None
+        )

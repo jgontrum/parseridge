@@ -7,7 +7,7 @@ from torch.optim.optimizer import Optimizer
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.training_data import ConLLDataset
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.parser.training import Hyperparameters
+from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.parser.training.callbacks.base_callback import Callback
 from parseridge.parser.training.callbacks.handler import CallbackHandler
 from parseridge.parser.training.callbacks.model_training_callback import (
