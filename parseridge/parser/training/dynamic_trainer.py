@@ -17,6 +17,33 @@ class DynamicTrainer(Trainer):
     The default trainer.
     """
 
+    def fit(
+        self,
+        epochs: int,
+        training_data: Corpus,
+        hyper_parameters: Hyperparameters = None,
+        **kwargs,
+    ) -> None:
+        if not isinstance(training_data, Corpus):
+            raise ValueError(f"The DynamicTrainer requires a Corpus object for training.")
+
+        hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
+
+        initial_epoch = self.last_epoch
+
+        self.callback_handler.on_train_begin(
+            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters
+        )
+
+        for epoch in range(initial_epoch + 1, epochs + initial_epoch + 1):
+            try:
+                self._run_epoch(epoch, training_data, hyper_parameters)
+            except StopTraining:
+                self.logger.info(f"Stopping training after {epoch} epochs.")
+                break
+
+        self.callback_handler.on_train_end()
+
     def _run_epoch(
         self, epoch: int, training_data: Corpus, hyper_parameters: Hyperparameters
     ):
@@ -71,30 +98,6 @@ class DynamicTrainer(Trainer):
                 break
 
         self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
-
-    def fit(
-        self,
-        epochs: int,
-        training_data: Corpus,
-        hyper_parameters: Hyperparameters = None,
-        **kwargs,
-    ) -> None:
-        hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
-
-        initial_epoch = self.last_epoch
-
-        self.callback_handler.on_train_begin(
-            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters
-        )
-
-        for epoch in range(initial_epoch + 1, epochs + initial_epoch + 1):
-            try:
-                self._run_epoch(epoch, training_data, hyper_parameters)
-            except StopTraining:
-                self.logger.info(f"Stopping training after {epoch} epochs.")
-                break
-
-        self.callback_handler.on_train_end()
 
     def _process_training_batch(
         self, batch, error_probability, margin_threshold

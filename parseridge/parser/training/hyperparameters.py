@@ -26,6 +26,8 @@ class Hyperparameters(LoggerMixin):
     margin_threshold: float = 2.5
     token_dropout: float = 0.01
 
+    loss_function: str = "CrossEntropy"  # See Criterion.LOSS_FUNCTIONS
+
     def update(self, **kwargs):
         new_object = deepcopy(self)
 

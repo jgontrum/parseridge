@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
 
 import torch
 from torch.optim.optimizer import Optimizer
 
+from parseridge.corpus.corpus import Corpus
+from parseridge.corpus.training_data import ConLLDataset
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.training import Hyperparameters
 from parseridge.parser.training.callbacks.base_callback import Callback
 from parseridge.parser.training.callbacks.handler import CallbackHandler
 from parseridge.parser.training.callbacks.model_training_callback import (
@@ -29,11 +32,27 @@ class Trainer(LoggerMixin, ABC):
         self.last_epoch = 0
 
     @abstractmethod
-    def fit(self, epochs: int):
+    def fit(
+        self,
+        epochs: int,
+        training_data: Union[Corpus, ConLLDataset],
+        hyper_parameters: Hyperparameters = None,
+        **kwargs,
+    ):
         pass
 
-    def fit_one_cycle(self):
-        self.fit(epochs=1)
+    def fit_one_cycle(
+        self,
+        training_data: Union[Corpus, ConLLDataset],
+        hyper_parameters: Hyperparameters = None,
+        **kwargs,
+    ):
+        return self.fit(
+            epochs=1,
+            training_data=training_data,
+            hyper_parameters=hyper_parameters,
+            **kwargs,
+        )
 
     def learn(self, loss: torch.Tensor):
         self.callback_handler.on_loss_begin(loss=loss)
