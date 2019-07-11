@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from io import StringIO
-from typing import Optional, List
+from typing import Optional, List, TextIO
 
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.relations import Relations
@@ -16,9 +15,9 @@ class Treebank(LoggerMixin):
     tokens, labels etc. between them.
     """
 
-    train_io: Optional[StringIO] = None
-    dev_io: Optional[StringIO] = None
-    test_io: Optional[StringIO] = None
+    train_io: Optional[TextIO] = None
+    dev_io: Optional[TextIO] = None
+    test_io: Optional[TextIO] = None
 
     train_sentences: Optional[List[Sentence]] = None
     dev_sentences: Optional[List[Sentence]] = None
@@ -35,7 +34,7 @@ class Treebank(LoggerMixin):
             as_string = "".join(self.train_io)
             self.train_sentences = list(Sentence.from_conllu(as_string))
 
-        if not self.train_sentences and self.dev_io:
+        if not self.dev_sentences and self.dev_io:
             self.logger.info("Load development corpus...")
             as_string = "".join(self.dev_io)
             self.dev_sentences = list(Sentence.from_conllu(as_string))

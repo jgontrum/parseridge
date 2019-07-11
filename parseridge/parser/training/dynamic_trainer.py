@@ -64,6 +64,8 @@ class DynamicTrainer(Trainer):
         loss = []
         epoch_loss = 0
 
+        criterion = None  # nn.CrossEntropyLoss()
+
         for i, batch in enumerate(iterator):
             try:
                 self.callback_handler.on_batch_begin(batch=i, batch_data=batch)
@@ -72,22 +74,33 @@ class DynamicTrainer(Trainer):
                     batch=batch,
                     error_probability=hyper_parameters.error_probability,
                     margin_threshold=hyper_parameters.margin_threshold,
+                    criterion=criterion,
                 )
 
-                loss += current_loss
+                if not criterion:
+                    loss += current_loss
 
-                if len(loss) > 50:
-                    combined_loss = sum(loss) / len(loss)
-                    self.learn(combined_loss)
+                    if len(loss) > 50:
+                        combined_loss = sum(loss) / len(loss)
+                        self.learn(combined_loss)
 
-                    batch_loss = combined_loss.item() + (
-                        hyper_parameters.margin_threshold * len(loss)
-                    )
-                    epoch_loss += batch_loss
-                    loss = []
+                        batch_loss = combined_loss.item()
+                        batch_loss += hyper_parameters.margin_threshold * len(loss)
+
+                        epoch_loss += batch_loss
+                        loss = []
+                    else:
+                        batch_loss = None
                 else:
-                    batch_loss = None
-
+                    loss.append(current_loss)
+                    if len(loss) > 10:
+                        combined_loss = sum(loss) / len(loss)
+                        self.learn(combined_loss)
+                        batch_loss = combined_loss.item()
+                        epoch_loss += batch_loss
+                        loss = []
+                    else:
+                        batch_loss = None
                 self.last_epoch = epoch
 
                 self.callback_handler.on_batch_end(
@@ -100,9 +113,15 @@ class DynamicTrainer(Trainer):
         self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
 
     def _process_training_batch(
-        self, batch, error_probability, margin_threshold
+        self, batch, error_probability, margin_threshold, criterion=None
     ) -> List[torch.Tensor]:
         loss = []
+
+        transition_logits = []
+        transition_gold_labels = []
+
+        relation_logits = []
+        relation_gold_labels = []
 
         # The batch contains of a tensor of processed sentences
         # that are ready to be used as an input to the LSTM
@@ -170,15 +189,41 @@ class DynamicTrainer(Trainer):
                 # Apply the best action and update the stack and buffer
                 configuration.apply_transition(best_action)
 
-                # Compute the loss by using the margin between the scores
-                if (
-                    best_wrong_action.transition is not None
-                    and best_valid_action.np_score
-                    < best_wrong_action.np_score + margin_threshold
-                ):
-                    margin = best_wrong_action.score - best_valid_action.score
-                    loss.append(margin)
+                if criterion:
+                    # Compute CrossEntropy loss
+                    gold_transition = best_valid_action.transition.value
+                    gold_relation = self.model.relations.label_signature.get_id(
+                        (best_valid_action.transition, best_valid_action.relation)
+                    )
 
+                    transition_logits.append(configuration.scores["transition_logits"])
+                    relation_logits.append(configuration.scores["relation_logits"])
+
+                    transition_gold_labels.append(gold_transition)
+                    relation_gold_labels.append(gold_relation)
+                else:
+                    # Compute the loss by using the margin between the scores
+                    if (
+                        best_wrong_action.transition is not None
+                        and best_valid_action.np_score
+                        < best_wrong_action.np_score + margin_threshold
+                    ):
+                        margin = best_wrong_action.score - best_valid_action.score
+                        loss.append(margin)
+
+        if criterion:
+            transition_logits = torch.stack(transition_logits)
+            relation_logits = torch.stack(relation_logits)
+
+            transition_gold_labels = to_int_tensor(
+                transition_gold_labels, self.model.device
+            )
+            relation_gold_labels = to_int_tensor(relation_gold_labels, self.model.device)
+
+            transition_loss = criterion(transition_logits, transition_gold_labels)
+            relation_loss = criterion(relation_logits, relation_gold_labels)
+
+            return transition_loss + relation_loss
         return loss
 
     @staticmethod
@@ -199,7 +244,7 @@ class DynamicTrainer(Trainer):
         stack_len = [len(c.stack) for c in configurations]
         buffer_len = [len(c.buffer) for c in configurations]
 
-        clf_transitions, clf_labels = model.compute_mlp_output(
+        transition_logits, relation_logits = model.compute_mlp_output(
             contextualized_input_batch=torch.stack(contextualized_inputs),
             stacks=to_int_tensor(padded_stacks, device=model.device),
             stack_lengths=to_int_tensor(stack_len, device=model.device),
@@ -208,17 +253,17 @@ class DynamicTrainer(Trainer):
         )
 
         # Isolate the columns for the transitions
-        left_arc = clf_transitions[:, T.LEFT_ARC.value].view(-1, 1)
-        right_arc = clf_transitions[:, T.RIGHT_ARC.value].view(-1, 1)
-        shift = clf_transitions[:, T.SHIFT.value].view(-1, 1)
-        swap = clf_transitions[:, T.SWAP.value].view(-1, 1)
+        left_arc = transition_logits[:, T.LEFT_ARC.value].view(-1, 1)
+        right_arc = transition_logits[:, T.RIGHT_ARC.value].view(-1, 1)
+        shift = transition_logits[:, T.SHIFT.value].view(-1, 1)
+        swap = transition_logits[:, T.SWAP.value].view(-1, 1)
 
         # Isolate the columns for the different labels
         relation_slices = model.relations.slices
-        shift_labels = clf_labels[:, relation_slices[T.SHIFT]]
-        swap_labels = clf_labels[:, relation_slices[T.SWAP]]
-        left_arc_labels = clf_labels[:, relation_slices[T.LEFT_ARC]]
-        right_arc_labels = clf_labels[:, relation_slices[T.RIGHT_ARC]]
+        shift_labels = relation_logits[:, relation_slices[T.SHIFT]]
+        swap_labels = relation_logits[:, relation_slices[T.SWAP]]
+        left_arc_labels = relation_logits[:, relation_slices[T.LEFT_ARC]]
+        right_arc_labels = relation_logits[:, relation_slices[T.RIGHT_ARC]]
 
         # Add them in one batch
         shift_score_batch = torch.add(shift, shift_labels)
@@ -253,6 +298,8 @@ class DynamicTrainer(Trainer):
             left_arc_scores_indices,
             right_arc_scores_sorted,
             right_arc_scores_indices,
+            transition_logits,
+            relation_logits,
         )
 
         # Update the result of the classifiers in the configurations
@@ -268,6 +315,8 @@ class DynamicTrainer(Trainer):
                 (T.LEFT_ARC, "best_scores_indices"): combination[6],
                 (T.RIGHT_ARC, "best_scores"): combination[7],
                 (T.RIGHT_ARC, "best_scores_indices"): combination[8],
+                "transition_logits": combination[9],
+                "relation_logits": combination[10],
             }
 
         return configurations

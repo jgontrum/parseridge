@@ -7,12 +7,12 @@ from torch.optim.optimizer import Optimizer
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.training_data import ConLLDataset
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.parser.training.callbacks.base_callback import Callback
 from parseridge.parser.training.callbacks.handler import CallbackHandler
 from parseridge.parser.training.callbacks.model_training_callback import (
     ModelTrainingCallback,
 )
+from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.utils.logger import LoggerMixin
 
 
@@ -31,6 +31,10 @@ class Trainer(LoggerMixin, ABC):
 
         self.last_epoch = 0
 
+    def register_callbacks(self, callbacks: List[Callback]) -> None:
+        for callback in callbacks:
+            self.callback_handler.register_callback(callback)
+
     @abstractmethod
     def fit(
         self,
@@ -38,7 +42,7 @@ class Trainer(LoggerMixin, ABC):
         training_data: Union[Corpus, ConLLDataset],
         hyper_parameters: Hyperparameters = None,
         **kwargs,
-    ):
+    ) -> None:
         pass
 
     def fit_one_cycle(
@@ -46,7 +50,7 @@ class Trainer(LoggerMixin, ABC):
         training_data: Union[Corpus, ConLLDataset],
         hyper_parameters: Hyperparameters = None,
         **kwargs,
-    ):
+    ) -> None:
         return self.fit(
             epochs=1,
             training_data=training_data,
@@ -54,7 +58,7 @@ class Trainer(LoggerMixin, ABC):
             **kwargs,
         )
 
-    def learn(self, loss: torch.Tensor):
+    def learn(self, loss: torch.Tensor) -> None:
         self.callback_handler.on_loss_begin(loss=loss)
 
         # Compute the gradients

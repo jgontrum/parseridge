@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.parser.modules.mlp import MultilayerPerceptron
 
 
 class InputEncoder(Module):
@@ -17,7 +16,7 @@ class InputEncoder(Module):
         max_sentence_length=100,
         positional_embedding_size=128,
         sum_directions=True,
-        reduce_dimensionality=False,
+        reduce_dimensionality=0,
         **kwargs,
     ):
         super(InputEncoder, self).__init__(**kwargs)
@@ -47,6 +46,13 @@ class InputEncoder(Module):
         #
         #     self.output_size += self.positional_embedding_size
 
+        if self.reduce_dimensionality:
+            self.dimensionality_reducer = nn.Sequential(
+                nn.Linear(token_embedding_size, self.reduce_dimensionality), nn.PReLU()
+            )
+
+            self.input_size = self.reduce_dimensionality
+
         # TODO Add other feature embeddings here
         self.rnn = nn.LSTM(
             input_size=self.input_size,
@@ -57,17 +63,6 @@ class InputEncoder(Module):
             batch_first=True,
         )
 
-        if self.reduce_dimensionality:
-            self.mlp = MultilayerPerceptron(
-                input_size=self.output_size,
-                output_size=128,
-                hidden_sizes=[256],
-                dropout=0.33,
-                activation=nn.Tanh,
-            )
-
-            self.output_size = self.mlp.output_size
-
     def load_external_embeddings(self, embeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
         self.token_embeddings.weight = embeddings.get_weight_matrix(
@@ -76,6 +71,9 @@ class InputEncoder(Module):
 
     def forward(self, sentence_batch, sentence_lengths):
         tokens_embedded = self.token_embeddings(sentence_batch)
+
+        if self.reduce_dimensionality:
+            tokens_embedded = self.dimensionality_reducer(tokens_embedded)
 
         input_packed = pack_padded_sequence(
             tokens_embedded, lengths=sentence_lengths, batch_first=True
@@ -89,9 +87,6 @@ class InputEncoder(Module):
             outputs = (
                 outputs[:, :, : self.hidden_size] + outputs[:, :, self.hidden_size :]
             )  # Sum bidirectional outputs
-
-        if self.reduce_dimensionality:
-            outputs = self.mlp(outputs)
 
         if self.positional_embedding_size:
             positional_embeddings = self.position_embeddings(sentence_lengths)
