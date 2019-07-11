@@ -70,9 +70,9 @@ class BaselineModel(Module):
             hidden_size=lstm_hidden_size,
             layers=lstm_layers,
             dropout=lstm_dropout,
-            positional_embedding_size=False,
             sum_directions=False,
             reduce_dimensionality=False,
+            mode="transformer",
             device=device,
         )
 

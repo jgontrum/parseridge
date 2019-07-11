@@ -39,9 +39,6 @@ class CallbackHandler(LoggerMixin):
             if callable(method):
                 method(optimizer=self.optimizer, model=self.model, **kwargs)
 
-                # self.logger.debug(
-                #     f"Running '{event}' callback for '{callback.__class__.__name__}'.")
-
     def on_train_begin(self, **kwargs: Any) -> None:
         self._run_callbacks("on_train_begin", kwargs)
 

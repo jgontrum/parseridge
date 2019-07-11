@@ -31,7 +31,7 @@ class Evaluator(LoggerMixin):
     def shutdown(self):
         self.callback_handler.on_shutdown()
 
-    def evaluate(self, epoch: int = -1) -> Dict[str, Dict[str, float]]:
+    def evaluate(self, epoch: int = -1, loss: float = 0.0) -> Dict[str, Dict[str, float]]:
         self.model.eval()
         self.callback_handler.on_eval_begin(epoch=epoch)
 
@@ -55,7 +55,7 @@ class Evaluator(LoggerMixin):
             "test": {"las": test_las, "uas": test_uas},
         }
 
-        self.callback_handler.on_eval_end(scores=scores)
+        self.callback_handler.on_eval_end(scores=scores, loss=loss)
 
         return scores
 

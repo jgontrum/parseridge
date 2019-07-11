@@ -1,36 +1,35 @@
-import math
-
 import torch
+from torch import nn
 
 from parseridge.parser.modules.data_parallel import Module
 
 
-# Implementation inspired by
-# https://towardsdatascience.com/how-to-code-the-transformer-in-pytorch-24db27c8f9ec
-class PositionalEncoder(Module):
-    def __init__(self, model_size=128, max_length=200, **kwargs):
+class PositionalEmbeddings(Module):
+    def __init__(self, embedding_size=128, max_length=80, **kwargs):
         super().__init__(**kwargs)
-        self.model_size = self.input_size = self.output_size = model_size
 
-        # create constant 'pe' matrix with values dependant on
-        # pos and i
-        pe = torch.zeros(max_length, self.model_size)
-        for pos in range(max_length):
-            for i in range(0, self.model_size, 2):
-                pe[pos, i] = math.sin(pos / (10000 ** ((2 * i) / self.model_size)))
-                pe[pos, i + 1] = math.cos(
-                    pos / (10000 ** ((2 * (i + 1)) / self.model_size))
-                )
+        self.embedding_size = embedding_size
+        self.max_length = max_length
+        self.padding_idx = 0
+        self.output_size = self.embedding_size
 
-        pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        # make embeddings relatively larger
-        x *= math.sqrt(self.model_size)
-
-        # add constant to embedding
-        seq_len = x.size(1)
-        return x + torch.tensor(
-            self.pe[:, :seq_len], requires_grad=False, device=self.device
+        self.emb = nn.Embedding(
+            num_embeddings=self.max_length + 1,
+            embedding_dim=self.embedding_size,
+            padding_idx=self.padding_idx,
         )
+
+    def forward(self, input_lengths):
+        max_length = max(1, max(input_lengths))
+
+        position_batch = []
+        for length in input_lengths:
+            positions = list(range(1, length + 1))
+            positions = [min(self.max_length, position) for position in positions]
+
+            padding = [self.padding_idx] * (max_length - length)
+            position_batch.append(positions + padding)
+
+        position_batch = torch.tensor(position_batch, device=self.device, dtype=torch.long)
+
+        return self.emb(position_batch)

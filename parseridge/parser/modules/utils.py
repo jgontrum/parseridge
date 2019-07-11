@@ -98,20 +98,6 @@ def pad_tensor_list(tensors, padding=0, length=None):
     return torch.stack(padded_tensors)
 
 
-def create_mask(lengths, max_len=None, device="cpu"):
-    if isinstance(lengths, torch.Tensor):
-        lengths = lengths.cpu().tolist()
-
-    if not max_len:
-        max_len = max(lengths)
-
-    # Build a mask that has a 0 for words and a 1 for the padding.
-    mask = [[0] * length + [1] * (max_len - length) for length in lengths]
-
-    # Create a ByteTensor on the given device and return it.
-    return torch.tensor(mask, device=device, dtype=torch.uint8)
-
-
 def lookup_tensors_for_indices(indices_batch, sequence_batch):
     return torch.stack(
         [
@@ -121,9 +107,13 @@ def lookup_tensors_for_indices(indices_batch, sequence_batch):
     )
 
 
-def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):
+def get_mask(batch, lengths, device="cpu"):
     max_len = batch.size(1)
-    mask = torch.arange(max_len, device=device)[None, :] < lengths[:, None]
+    return torch.arange(max_len, device=device)[None, :] < lengths[:, None]
+
+
+def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):
+    mask = get_mask(batch, lengths, device)
     batch[~mask] = masked_value
     return batch
 
