@@ -116,6 +116,7 @@ def set_seed(seed=None):
         if torch.cuda.device_count() > 0:
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
+            torch.cuda.manual_seed_all(seed)
 
 
 class RobustDict(dict):

@@ -17,5 +17,5 @@ class SaveModelCallback(Callback):
 
     def on_epoch_end(self, epoch: int, model: Module, **kwargs: Any) -> None:
         if self.folder:
-            file_name = f"{self.folder}/epoch_{epoch + 1}.torch"
+            file_name = f"{self.folder}/epoch_{epoch}.torch"
             torch.save(model.state_dict(), file_name)
