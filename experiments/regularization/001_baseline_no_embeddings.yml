@@ -18,8 +18,8 @@ experiment:
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
   log_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/experiment.log
   google_sheets_id: 1lkHMiOWL3kMBwJbrdQVeMPS_j9DEAmW_jFiHLhM13aA
-  google_sheets_auth_path: google_sheets_auth.json
-  show_progress_bars: yes
+  google_sheets_auth_path: /usit/abel/u1/jgontrum/projects/parseridge/google_sheets_auth.json
+  show_progress_bars: no
 
 model:
   parsing:
