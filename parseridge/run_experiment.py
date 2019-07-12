@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+from copy import copy
 
 import yaml
 
@@ -16,6 +17,21 @@ def get_args():
     return parser.parse_args()
 
 
+def dict_generator(indict):
+    """
+    Yields the leaves of a dict (keys + values).
+    """
+    if isinstance(indict, dict):
+        for key, value in indict.items():
+            if isinstance(value, dict):
+                for d in dict_generator(value):
+                    yield d
+            else:
+                yield key, value
+    else:
+        yield indict
+
+
 if __name__ == "__main__":
     args = get_args()
 
@@ -24,30 +40,43 @@ if __name__ == "__main__":
     experiment = experiment_definition["experiment"]
 
     # Fill in the templates in the path values
-    experiment["code_path"] = experiment["code_path"].format(**experiment)
-    experiment["model_save_path"] = experiment["model_save_path"].format(**experiment)
-    experiment["csv_output_path"] = experiment["csv_output_path"].format(**experiment)
+    experiment_copy = copy(experiment)
+    for k, v in experiment.items():
+        if not isinstance(v, str):
+            continue
 
-    if os.path.exists(experiment["code_path"]):
-        raise Exception(f"Folder already exists: {experiment['code_path']}.")
+        experiment[k] = experiment[k].format(**experiment_copy)
 
-    if os.path.exists(experiment["model_save_path"]):
-        raise Exception(f"Folder already exists: {experiment['model_save_path']}.")
+        # Make sure the paths are empty and create the directories
+        if v.endswith("_path"):
+            if os.path.exists(v):
+                raise Exception(f"Folder already exists: {v}.")
+            os.makedirs(v, exist_ok=True)
 
-    if os.path.exists(experiment["csv_output_path"]):
-        raise Exception(f"File already exists: {experiment['csv_output_path']}.")
-
-    # Create the directories
-    os.makedirs(experiment["code_path"], exist_ok=True)
-    os.makedirs(experiment["model_save_path"], exist_ok=True)
-    os.makedirs(os.path.dirname(experiment["csv_output_path"]), exist_ok=True)
+        elif v.endswith("_file"):
+            if os.path.exists(v):
+                raise Exception(f"File already exists: {v}.")
+            os.makedirs(os.path.dirname(v), exist_ok=True)
 
     # Clone the code base and switch to the required commit
     subprocess.run(
         f"git clone {experiment['repository']} {experiment['code_path']} &&"
         f"cd {experiment['code_path']} &&"
-        f"git checkout {experiment['commit']}",
+        f"git checkout --quiet  {experiment['commit']}",
         shell=True,
     )
 
-    # TODO start parser
+    # Get all the arguments we want to pass to the trainer
+    training_args = {}
+    for k, v in dict_generator(experiment_definition):
+        if k not in ["repository", "code_path", "commit", "python_bin"]:
+            training_args[k] = v
+
+    arguments = " ".join([f"--{option}={value}" for option, value in training_args.items()])
+
+    # Run the experiment
+    subprocess.run(
+        f"cd {experiment['code_path']} &&"
+        f"{experiment['python_bin']} parseridge/train.py {arguments}",
+        shell=True,
+    )

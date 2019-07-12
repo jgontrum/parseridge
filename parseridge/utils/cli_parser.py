@@ -1,8 +1,6 @@
 import argparse
 import distutils
 
-from parseridge.parser.loss import Criterion
-
 
 def parse_train_cli_arguments():
     parser = argparse.ArgumentParser(
@@ -19,14 +17,14 @@ def parse_train_cli_arguments():
     )
 
     file_group.add_argument(
-        "--csv_output_path",
+        "--csv_output_file",
         type=str,
         help="If set, the results are saved in this csv file.",
         required=False,
     )
 
     file_group.add_argument(
-        "--log_path",
+        "--log_file",
         type=str,
         help="If set, the log is saved in this file.",
         required=False,
@@ -205,7 +203,7 @@ def parse_train_cli_arguments():
         default="MaxMargin",
         help="Name of the loss function to use.",
         required=False,
-        choices=list(Criterion.LOSS_FUNCTIONS.keys()),
+        choices=["MaxMargin", "CrossEntropy"],
     )
 
     misc_group = parser.add_argument_group("Misc.")
