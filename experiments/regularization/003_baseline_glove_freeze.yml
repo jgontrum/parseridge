@@ -12,7 +12,7 @@ experiment:
   experiment_name: 003_baseline_glove_freeze
   repository: git@github.com:jgontrum/parseridge.git
   python_bin: python
-  commit: c739deb21e0d5c6bdfdac7c0683522db25da23d4
+  commit: a2b1ab18df55b1c25554dea6cca9ef257c6454ab
   code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
   model_save_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/models
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
