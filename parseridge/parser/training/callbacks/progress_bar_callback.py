@@ -3,7 +3,6 @@ from typing import Any
 from tqdm.auto import tqdm
 
 from parseridge.parser.training.callbacks.base_callback import Callback
-from parseridge.parser.training.hyperparameters import Hyperparameters
 
 
 class ProgressBarCallback(Callback):
@@ -22,10 +21,8 @@ class ProgressBarCallback(Callback):
         self.num_epochs = None
         self.current_epoch = None
 
-    def on_train_begin(
-        self, epochs: int, hyper_parameters: Hyperparameters, **kwargs: Any
-    ) -> None:
-        self.batch_size = hyper_parameters.batch_size
+    def on_train_begin(self, epochs: int, batch_size: int, **kwargs: Any) -> None:
+        self.batch_size = batch_size
         self.num_epochs = epochs
 
     def on_epoch_begin(
@@ -33,7 +30,7 @@ class ProgressBarCallback(Callback):
     ) -> None:
         self.current_epoch = epoch
 
-        self._pbar = tqdm(total=len(training_data))
+        self._pbar = tqdm(total=len(training_data), leave=False)
 
         self._pbar.set_description(
             self.template.format(epoch=self.current_epoch, epochs=self.num_epochs, loss=0)

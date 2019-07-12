@@ -11,7 +11,7 @@ class TrainSimpleLoggerCallback(Callback):
         self.logger.info("Finished training.")
 
     def on_epoch_begin(self, epoch: int, **kwargs: Any) -> None:
-        self.logger.info(f"Start epoch #{epoch + 1}.")
+        self.logger.info(f"Start epoch #{epoch}.")
 
-    def on_epoch_end(self, epoch: int, **kwargs: Any) -> None:
-        self.logger.info(f"Finished epoch #{epoch + 1}.")
+    def on_epoch_end(self, epoch: int, epoch_loss: float, **kwargs: Any) -> None:
+        self.logger.info(f"Finished epoch #{epoch} with a loss of {epoch_loss:.4f}.")

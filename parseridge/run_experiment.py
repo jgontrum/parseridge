@@ -1,5 +1,4 @@
 import argparse
-import os
 import subprocess
 from copy import copy
 
@@ -40,6 +39,7 @@ if __name__ == "__main__":
     experiment = experiment_definition["experiment"]
 
     # Fill in the templates in the path values
+    experiment["code_path"] = "/Users/johannes/Development/parseridge"
     experiment_copy = copy(experiment)
     for k, v in experiment.items():
         if not isinstance(v, str):
@@ -48,23 +48,23 @@ if __name__ == "__main__":
         experiment[k] = experiment[k].format(**experiment_copy)
 
         # Make sure the paths are empty and create the directories
-        if v.endswith("_path"):
-            if os.path.exists(v):
-                raise Exception(f"Folder already exists: {v}.")
-            os.makedirs(v, exist_ok=True)
-
-        elif v.endswith("_file"):
-            if os.path.exists(v):
-                raise Exception(f"File already exists: {v}.")
-            os.makedirs(os.path.dirname(v), exist_ok=True)
-
-    # Clone the code base and switch to the required commit
-    subprocess.run(
-        f"git clone {experiment['repository']} {experiment['code_path']} &&"
-        f"cd {experiment['code_path']} &&"
-        f"git checkout --quiet  {experiment['commit']}",
-        shell=True,
-    )
+        # if v.endswith("_path"):
+        #     if os.path.exists(v):
+        #         raise Exception(f"Folder already exists: {v}.")
+        #     os.makedirs(v, exist_ok=True)
+        #
+        # elif v.endswith("_file"):
+        #     if os.path.exists(v):
+        #         raise Exception(f"File already exists: {v}.")
+        #     os.makedirs(os.path.dirname(v), exist_ok=True)
+    #
+    # # Clone the code base and switch to the required commit
+    # subprocess.run(
+    #     f"git clone {experiment['repository']} {experiment['code_path']} &&"
+    #     f"cd {experiment['code_path']} &&"
+    #     f"git checkout --quiet  {experiment['commit']}",
+    #     shell=True,
+    # )
 
     # Get all the arguments we want to pass to the trainer
     training_args = {}
@@ -72,7 +72,13 @@ if __name__ == "__main__":
         if k not in ["repository", "code_path", "commit", "python_bin"]:
             training_args[k] = v
 
-    arguments = " ".join([f"--{option}={value}" for option, value in training_args.items()])
+    arguments = []
+    for option, value in training_args.items():
+        if isinstance(value, list):
+            value = ",".join([str(v) for v in value])
+        arguments.append(f"--{option}={value}")
+
+    arguments = " ".join(arguments)
 
     # Run the experiment
     subprocess.run(

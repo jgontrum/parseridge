@@ -1,5 +1,6 @@
 import argparse
-import distutils
+
+from distutils.util import strtobool
 
 
 def parse_train_cli_arguments():
@@ -74,6 +75,15 @@ def parse_train_cli_arguments():
         help="Size of the word embeddings. "
         "Will be ignored, if external embeddings are loaded.",
         required=False,
+    )
+
+    nn_group.add_argument(
+        "--input_encoder_type",
+        type=str,
+        default="lstm",
+        help="The type of input encoder to use.",
+        required=False,
+        choices=["lstm", "transformer"],
     )
 
     nn_group.add_argument(
@@ -232,7 +242,7 @@ def parse_train_cli_arguments():
     misc_group.add_argument(
         "--freeze_embeddings",
         default=True,
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        type=lambda x: bool(strtobool(x)),
         help="Freeze the external embeddngs or not.",
         required=False,
     )
@@ -240,7 +250,7 @@ def parse_train_cli_arguments():
     misc_group.add_argument(
         "--show_progress_bars",
         default=True,
-        type=lambda x: bool(distutils.util.strtobool(x)),
+        type=lambda x: bool(strtobool(x)),
         help="Show the progress bars for training and evaluation or not.",
         required=False,
     )

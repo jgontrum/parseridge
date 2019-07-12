@@ -1,3 +1,4 @@
+import json
 import logging
 
 from torch import nn
@@ -23,7 +24,6 @@ from parseridge.parser.training.dynamic_trainer import DynamicTrainer
 from parseridge.utils.cli_parser import parse_train_cli_arguments
 from parseridge.utils.helpers import set_seed
 
-
 if __name__ == "__main__":
     args = parse_train_cli_arguments()
 
@@ -33,88 +33,105 @@ if __name__ == "__main__":
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    # Set the seed for deterministic outcomes
-    if args.seed:
-        set_seed(args.seed)
+    logger.info(f"Hyper Parameters: \n{json.dumps(vars(args), indent=2, sort_keys=True)}")
 
-    # Load the corpora
-    treebank = Treebank(
-        train_io=open("data/UD_English-GUM/en_gum-ud-train.conllu"),
-        dev_io=open("data/UD_English-GUM/en_gum-ud-dev.conllu"),
-        test_io=None,
-        device=args.device,
-    )
+    try:
+        # Set the seed for deterministic outcomes
+        if args.seed:
+            set_seed(args.seed)
 
-    # Load external embeddings
-    if args.embeddings_file:
-        logger.info(f"Loading embeddings from '{args.embeddings_file}'...")
-        embeddings = ExternalEmbeddings(
-            path=args.embeddings_file,
-            vendor=args.embeddings_vendor,
-            freeze=args.freeze_embeddings,
+        # Load the corpora
+        treebank = Treebank(
+            train_io=open(args.train_corpus),
+            dev_io=open(args.dev_corpus),
+            test_io=open(args.test_corpus),
+            device=args.device,
         )
-    else:
-        embeddings = None
 
-    # Configure the machine learning model
-    model = BaselineModel(
-        relations=treebank.relations,
-        vocabulary=treebank.vocabulary,
-        num_stack=args.num_stack,
-        num_buffer=args.num_buffer,
-        lstm_dropout=args.lstm_dropout,
-        mlp_dropout=args.mlp_dropout,
-        embedding_size=args.embedding_size,
-        lstm_hidden_size=args.lstm_hidden_size,
-        lstm_layers=args.lstm_layers,
-        input_encoder_type=args.input_encoder_type,
-        relation_mlp_layers=args.relation_mlp_layers,
-        transition_mlp_layers=args.transition_mlp_layers,
-        device=args.device,
-    ).to(args.device)
+        # Load external embeddings
+        if args.embeddings_file:
+            logger.info(f"Loading embeddings from '{args.embeddings_file}'...")
+            embeddings = ExternalEmbeddings(
+                path=args.embeddings_file,
+                vendor=args.embeddings_vendor,
+                freeze=args.freeze_embeddings,
+            )
 
-    optimizer = Adam(model.parameters(), lr=0, weight_decay=0)
+            if embeddings.dim != args.embedding_size:
+                logger.warning(
+                    f"Embedding dimension mismatch: External embeddings have "
+                    f"{embeddings.dim} dimensions, settings require "
+                    f"{args.embedding_size} dimensions. Adapting settings and continue."
+                )
+                args.embedding_size = embeddings.dim
+        else:
+            embeddings = None
 
-    # Set-up callbacks for the training and the evaluation.
-    evaluation_callbacks = [EvalSimpleLogger(), CSVReporter(csv_path=args.csv_output_file)]
+        # Configure the machine learning model
+        model = BaselineModel(
+            relations=treebank.relations,
+            vocabulary=treebank.vocabulary,
+            num_stack=args.num_stack,
+            num_buffer=args.num_buffer,
+            lstm_dropout=args.lstm_dropout,
+            mlp_dropout=args.mlp_dropout,
+            embedding_size=args.embedding_size,
+            lstm_hidden_size=args.lstm_hidden_size,
+            lstm_layers=args.lstm_layers,
+            input_encoder_type=args.input_encoder_type,
+            relation_mlp_layers=args.relation_mlp_layers,
+            transition_mlp_layers=args.transition_mlp_layers,
+            device=args.device,
+        ).to(args.device)
 
-    training_callbacks = [
-        TrainSimpleLoggerCallback(),
-        SaveModelCallback(folder_path=args.model_save_path),
-    ]
+        optimizer = Adam(model.parameters(), lr=0, weight_decay=0)
 
-    if args.show_progress_bars:
-        evaluation_callbacks.append(EvalProgressBarCallback())
-        training_callbacks.append(ProgressBarCallback(moving_average=64))
+        # Set-up callbacks for the training and the evaluation.
+        evaluation_callbacks = [
+            EvalSimpleLogger(),
+            CSVReporter(csv_path=args.csv_output_file),
+        ]
 
-    training_callbacks.append(
-        EvaluationCallback(
-            evaluator=Evaluator(model, treebank, callbacks=evaluation_callbacks)
-        )
-    )
+        training_callbacks = [
+            TrainSimpleLoggerCallback(),
+            SaveModelCallback(folder_path=args.model_save_path),
+        ]
 
-    # Enable gradient clipping
-    if args.gradient_clipping:
+        if args.show_progress_bars:
+            evaluation_callbacks.append(EvalProgressBarCallback())
+            training_callbacks.append(ProgressBarCallback(moving_average=64))
+
         training_callbacks.append(
-            GradientClippingCallback(threshold=args.gradient_clipping)
+            EvaluationCallback(
+                evaluator=Evaluator(model, treebank, callbacks=evaluation_callbacks)
+            )
         )
 
-    # Get loss function
-    loss_function = {
-        "MaxMargin": None,  # The default, in-built loss function,
-        "CrossEntropy": nn.CrossEntropyLoss(),
-    }[args.loss_function]
+        # Enable gradient clipping
+        if args.gradient_clipping:
+            training_callbacks.append(
+                GradientClippingCallback(threshold=args.gradient_clipping)
+            )
 
-    # Create the trainer and start training
-    trainer = DynamicTrainer(model, optimizer, callbacks=training_callbacks)
-    trainer.fit(
-        epochs=args.epochs,
-        training_data=treebank.train_corpus,
-        batch_size=args.batch_size,
-        error_probability=args.error_probability,
-        oov_probability=args.oov_probability,
-        token_dropout=args.token_dropout,
-        margin_threshold=args.margin_threshold,
-        update_frequency=args.update_frequency,
-        criterion=loss_function,
-    )
+        # Get loss function
+        loss_function = {
+            "MaxMargin": None,  # The default, in-built loss function,
+            "CrossEntropy": nn.CrossEntropyLoss(),
+        }[args.loss_function]
+
+        # Create the trainer and start training
+        trainer = DynamicTrainer(model, optimizer, callbacks=training_callbacks)
+        trainer.fit(
+            epochs=args.epochs,
+            training_data=treebank.train_corpus,
+            batch_size=args.batch_size,
+            error_probability=args.error_probability,
+            oov_probability=args.oov_probability,
+            token_dropout=args.token_dropout,
+            margin_threshold=args.margin_threshold,
+            update_frequency=args.update_frequency,
+            criterion=loss_function,
+        )
+    except Exception:
+        # If the trainer crashes, we want to save the exception into our logs.
+        logger.error("Fatal error in main loop:", exc_info=True)

@@ -50,6 +50,7 @@ class DynamicTrainer(Trainer):
                     token_dropout=token_dropout,
                     margin_threshold=margin_threshold,
                     error_probability=error_probability,
+                    update_frequency=update_frequency,
                 )
             except StopTraining:
                 self.logger.info(f"Stopping training after {epoch} epochs.")
