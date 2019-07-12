@@ -7,6 +7,7 @@ from torch import Tensor
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import (
@@ -28,9 +29,10 @@ class BaselineModel(Module):
         embedding_size: int = 100,
         lstm_hidden_size: int = 125,
         lstm_layers: int = 2,
+        input_encoder_type: str = "lstm",
         transition_mlp_layers: List[int] = None,
         relation_mlp_layers: List[int] = None,
-        embeddings: List[int] = None,
+        embeddings: ExternalEmbeddings = None,
         device: str = "cpu",
     ) -> None:
 
@@ -72,7 +74,7 @@ class BaselineModel(Module):
             dropout=lstm_dropout,
             sum_directions=False,
             reduce_dimensionality=False,
-            mode="transformer",
+            mode=input_encoder_type,
             device=device,
         )
 

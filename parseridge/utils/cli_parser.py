@@ -1,22 +1,56 @@
 import argparse
+import distutils
 
 from parseridge.parser.loss import Criterion
 
 
-def parse_cli_arguments():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def parse_train_cli_arguments():
+    parser = argparse.ArgumentParser(
+        description="Trains a parser model.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
-    file_group = parser.add_argument_group("Files")
+    file_group = parser.add_argument_group("File Paths")
     file_group.add_argument(
-        "--train_corpus", type=str, help="Path to train file.", required=True
+        "--model_save_path",
+        type=str,
+        help="If set, the models are saved in this directory after each epoch.",
+        required=False,
     )
 
     file_group.add_argument(
-        "--test_corpus", type=str, help="Path to test file.", required=True
+        "--csv_output_path",
+        type=str,
+        help="If set, the results are saved in this csv file.",
+        required=False,
     )
 
-    # TODO add files to save and load models
-    # TODO add files to save treebank output
+    file_group.add_argument(
+        "--log_path",
+        type=str,
+        help="If set, the log is saved in this file.",
+        required=False,
+    )
+
+    file_group.add_argument(
+        "--embeddings_file",
+        type=str,
+        default="",
+        help="Path to external embeddings to load.",
+        required=False,
+    )
+
+    file_group.add_argument(
+        "--train_corpus", type=str, help="Path to the train.conllu file.", required=True
+    )
+
+    file_group.add_argument(
+        "--dev_corpus", type=str, help="Path to the dev.conllu file.", required=True
+    )
+
+    file_group.add_argument(
+        "--test_corpus", type=str, help="Path to the test.conllu file.", required=False
+    )
 
     nn_group = parser.add_argument_group("Model Design")
     nn_group.add_argument(
@@ -74,12 +108,11 @@ def parse_cli_arguments():
         required=False,
     )
 
-    # TODO add activation function here?
     regularization_group = parser.add_argument_group("Regularization")
     regularization_group.add_argument(
         "--margin_threshold",
         type=float,
-        default=2.5,
+        default=1.0,
         help="The desired difference between the best right and the best wrong action.",
         required=False,
     )
@@ -102,26 +135,10 @@ def parse_cli_arguments():
     )
 
     regularization_group.add_argument(
-        "--update_size",
+        "--update_frequency",
         type=int,
         default=50,
         help="Update the weights after accumulating a certain number of losses.",
-        required=False,
-    )
-
-    regularization_group.add_argument(
-        "--loss_factor",
-        type=float,
-        default=0.75,
-        help="Multiply the accumulated loss with this number to regularize it.",
-        required=False,
-    )
-
-    regularization_group.add_argument(
-        "--loss_strategy",
-        type=str,
-        default="avg",
-        help="Strategy to reduce a list of loss values to one. Supported are avg and sum.",
         required=False,
     )
 
@@ -144,7 +161,7 @@ def parse_cli_arguments():
     regularization_group.add_argument(
         "--gradient_clipping",
         type=float,
-        default=10.0,
+        default=100.0,
         help="Make sure gradients do not get larger than this.",
         required=False,
     )
@@ -185,45 +202,52 @@ def parse_cli_arguments():
     regularization_group.add_argument(
         "--loss_function",
         type=str,
-        default="CrossEntropy",
+        default="MaxMargin",
         help="Name of the loss function to use.",
         required=False,
         choices=list(Criterion.LOSS_FUNCTIONS.keys()),
     )
 
-    analytics_group = parser.add_argument_group("Analytics")
-    analytics_group.add_argument(
-        "--google_sheet_id",
+    misc_group = parser.add_argument_group("Misc.")
+    misc_group.add_argument(
+        "--google_sheets_id",
         type=str,
         help="The id of the Google Sheet to save the report in.",
         required=False,
     )
 
-    analytics_group.add_argument(
-        "--google_sheet_auth_file",
+    misc_group.add_argument(
+        "--google_sheets_auth_path",
         type=str,
         help="The auth.json file to for the Google API.",
         required=False,
-        default="google_sheets_auth.json",
     )
 
-    parser.add_argument(
-        "--embeddings_file",
+    misc_group.add_argument(
+        "--embeddings_vendor",
         type=str,
-        default="",
-        help="Path to external embeddings to load.",
+        default="glove",
+        help="Name of the embeddings format.",
         required=False,
     )
 
-    parser.add_argument(
-        "--comment",
-        type=str,
-        default="",
-        help="A comment about this experiment.",
+    misc_group.add_argument(
+        "--freeze_embeddings",
+        default=True,
+        type=lambda x: bool(distutils.util.strtobool(x)),
+        help="Freeze the external embeddngs or not.",
         required=False,
     )
 
-    parser.add_argument(
+    misc_group.add_argument(
+        "--show_progress_bars",
+        default=True,
+        type=lambda x: bool(distutils.util.strtobool(x)),
+        help="Show the progress bars for training and evaluation or not.",
+        required=False,
+    )
+
+    misc_group.add_argument(
         "--seed",
         type=int,
         default=None,
@@ -231,8 +255,16 @@ def parse_cli_arguments():
         required=False,
     )
 
+    misc_group.add_argument(
+        "--experiment_name",
+        type=str,
+        default="",
+        help="Name of the experiment. Used for e.g. for logging.",
+        required=False,
+    )
+
     parser.add_argument(
-        "--epochs", type=int, default=30, help="Number of epochs to run.", required=False
+        "--epochs", type=int, default=50, help="Number of epochs to run.", required=False
     )
 
     parser.add_argument(
@@ -240,22 +272,6 @@ def parse_cli_arguments():
         type=str,
         default="cpu",
         help="Device to run on. cpu or cuda.",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--train",
-        action="store_true",
-        default=True,
-        help="Use in training mode.",
-        required=False,
-    )
-
-    parser.add_argument(
-        "--pred_batch_size",
-        type=int,
-        default=512,
-        help="Predict number of sentences per batch.",
         required=False,
     )
 

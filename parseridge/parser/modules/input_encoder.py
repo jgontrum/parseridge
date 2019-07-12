@@ -4,6 +4,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.utils import get_mask
 
 
@@ -78,7 +79,7 @@ class InputEncoder(Module):
 
             self.output_size = self.input_size
 
-    def load_external_embeddings(self, embeddings):
+    def load_external_embeddings(self, embeddings: ExternalEmbeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
         self.token_embeddings.weight = embeddings.get_weight_matrix(
             self.token_vocabulary, self.device

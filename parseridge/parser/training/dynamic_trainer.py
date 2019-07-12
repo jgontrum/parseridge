@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Optional
 
 import torch
+from torch.nn.modules.loss import _Loss
 
 from parseridge.corpus.corpus import CorpusIterator, Corpus
 from parseridge.parser.configuration import Configuration
@@ -8,7 +9,6 @@ from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.utils import pad_list_of_lists, to_int_tensor
 from parseridge.parser.training.base_trainer import Trainer
 from parseridge.parser.training.callbacks.base_callback import StopEpoch, StopTraining
-from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.utils.helpers import T
 
 
@@ -21,23 +21,36 @@ class DynamicTrainer(Trainer):
         self,
         epochs: int,
         training_data: Corpus,
-        hyper_parameters: Hyperparameters = None,
+        batch_size: int = 4,
+        oov_probability: float = 0.00,
+        token_dropout: float = 0.00,
+        margin_threshold: float = 1.00,
+        error_probability: float = 0.1,
+        update_frequency: int = 50,
+        criterion: Optional[_Loss] = None,
         **kwargs,
     ) -> None:
         if not isinstance(training_data, Corpus):
             raise ValueError(f"The DynamicTrainer requires a Corpus object for training.")
 
-        hyper_parameters = (hyper_parameters or Hyperparameters()).update(**kwargs)
-
         initial_epoch = self.last_epoch
 
         self.callback_handler.on_train_begin(
-            epochs=epochs + initial_epoch, hyper_parameters=hyper_parameters
+            epochs=epochs + initial_epoch, batch_size=batch_size
         )
 
         for epoch in range(initial_epoch + 1, epochs + initial_epoch + 1):
             try:
-                self._run_epoch(epoch, training_data, hyper_parameters)
+                self._run_epoch(
+                    epoch=epoch,
+                    training_data=training_data,
+                    criterion=criterion,
+                    batch_size=batch_size,
+                    oov_probability=oov_probability,
+                    token_dropout=token_dropout,
+                    margin_threshold=margin_threshold,
+                    error_probability=error_probability,
+                )
             except StopTraining:
                 self.logger.info(f"Stopping training after {epoch} epochs.")
                 break
@@ -45,16 +58,25 @@ class DynamicTrainer(Trainer):
         self.callback_handler.on_train_end()
 
     def _run_epoch(
-        self, epoch: int, training_data: Corpus, hyper_parameters: Hyperparameters
+        self,
+        epoch: int,
+        training_data: Corpus,
+        batch_size: int,
+        criterion: Optional[_Loss],
+        update_frequency: int,
+        oov_probability: float,
+        token_dropout: float,
+        margin_threshold: float,
+        error_probability: float,
     ):
         iterator = CorpusIterator(
             training_data,
-            batch_size=hyper_parameters.batch_size,
+            batch_size=batch_size,
             shuffle=True,
             train=True,
-            oov_probability=hyper_parameters.oov_probability,
+            oov_probability=oov_probability,
             group_by_length=True,
-            token_dropout=hyper_parameters.token_dropout,
+            token_dropout=token_dropout,
         )
 
         self.callback_handler.on_epoch_begin(
@@ -64,28 +86,26 @@ class DynamicTrainer(Trainer):
         loss = []
         epoch_loss = 0
 
-        criterion = None  # nn.CrossEntropyLoss()
-
         for i, batch in enumerate(iterator):
             try:
                 self.callback_handler.on_batch_begin(batch=i, batch_data=batch)
 
                 current_loss = self._process_training_batch(
                     batch=batch,
-                    error_probability=hyper_parameters.error_probability,
-                    margin_threshold=hyper_parameters.margin_threshold,
+                    error_probability=error_probability,
+                    margin_threshold=margin_threshold,
                     criterion=criterion,
                 )
 
                 if not criterion:
                     loss += current_loss
 
-                    if len(loss) > 50:
+                    if len(loss) > update_frequency:
                         combined_loss = sum(loss) / len(loss)
                         self.learn(combined_loss)
 
                         batch_loss = combined_loss.item()
-                        batch_loss += hyper_parameters.margin_threshold * len(loss)
+                        batch_loss += margin_threshold * len(loss)
 
                         epoch_loss += batch_loss
                         loss = []
