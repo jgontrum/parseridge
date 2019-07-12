@@ -6,6 +6,8 @@ from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallba
 
 
 class CSVReporter(EvalCallback):
+    _order = 10
+
     def __init__(self, csv_path: Optional[str] = None):
         self.csv_path = csv_path
 

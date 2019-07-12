@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from itertools import chain
-from typing import List, NamedTuple
+from typing import List
 
 import pygsheets
 from pygsheets import Cell
@@ -8,7 +9,8 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class GoogleSheetsTemplateEngine(LoggerMixin):
-    class TemplateCell(NamedTuple):
+    @dataclass
+    class TemplateCell:
         template_cell: Cell
         position: List[int]
         direction: str

@@ -7,7 +7,9 @@ from parseridge.utils.logger import LoggerMixin
 class ExternalEmbeddings(LoggerMixin):
     def __init__(self, path, vendor="glove"):
         if vendor == "glove":
-            self.token_to_embedding = self._load_glove(path)
+            self.token_to_embedding = self._load(path)
+        elif vendor == "fasttext":
+            self.token_to_embedding = self._load(path, skip_header=True)
         else:
             raise ValueError(f"Vendor '{vendor}' not supported.")
 
@@ -15,10 +17,13 @@ class ExternalEmbeddings(LoggerMixin):
         self.dim = next(iter(self.token_to_embedding.values())).size
 
     @staticmethod
-    def _load_glove(path):
+    def _load(path, skip_header=False):
         token_to_embedding = {}
 
         with open(path) as embedding_file:
+            if skip_header:
+                next(embedding_file)
+
             for line in embedding_file:
                 token, *embeddings = line.split()
                 token_to_embedding[token] = np.array([float(n) for n in embeddings])

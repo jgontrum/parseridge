@@ -1,4 +1,5 @@
 import os
+import random
 from collections import namedtuple
 from enum import Enum
 
@@ -110,11 +111,11 @@ def set_seed(seed=None):
     if seed is not None:
         np.random.seed(seed)
         torch.manual_seed(seed)
+        random.seed(seed)
 
         if torch.cuda.device_count() > 0:
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
-            torch.cuda.manual_seed(seed)
 
 
 class RobustDict(dict):

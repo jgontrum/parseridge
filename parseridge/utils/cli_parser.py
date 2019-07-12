@@ -237,6 +237,7 @@ def parse_train_cli_arguments():
         default="glove",
         help="Name of the embeddings format.",
         required=False,
+        choices=["glove", "fasttext"],
     )
 
     misc_group.add_argument(

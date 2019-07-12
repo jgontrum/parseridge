@@ -11,6 +11,9 @@ from parseridge.parser.baseline_model import BaselineModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
 from parseridge.parser.evaluation.callbacks.csv_callback import CSVReporter
+from parseridge.parser.evaluation.callbacks.google_sheets_callback import (
+    GoogleSheetsReporter,
+)
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.training.callbacks.evaluation_callback import EvaluationCallback
 from parseridge.parser.training.callbacks.gradient_clipping_callback import (
@@ -42,6 +45,7 @@ if __name__ == "__main__":
     try:
         # Set the seed for deterministic outcomes
         if args.seed:
+            logger.info(f"Setting random seed to {args.seed}.")
             set_seed(args.seed)
 
         # Load external embeddings
@@ -99,6 +103,12 @@ if __name__ == "__main__":
         evaluation_callbacks = [
             EvalSimpleLogger(),
             CSVReporter(csv_path=args.csv_output_file),
+            GoogleSheetsReporter(
+                experiment_title=args.experiment_name,
+                sheets_id=args.google_sheets_id,
+                auth_file_path=args.google_sheets_auth_path,
+                hyper_parameters=vars(args),
+            ),
         ]
 
         training_callbacks = [
