@@ -22,7 +22,7 @@ class InputEncoder(Module):
         mode="lstm",
         **kwargs,
     ):
-        super(InputEncoder, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.token_vocabulary = token_vocabulary
         self.input_size = token_embedding_size

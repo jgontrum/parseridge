@@ -45,19 +45,19 @@ class Treebank(LoggerMixin):
             self.test_sentences = list(Sentence.from_conllu(as_string))
 
         if not self.vocabulary:
-            # Mode 1
             self.vocabulary = Vocabulary()
+
+        if not self.relations:
             self.relations = Relations(self.train_sentences)
-        else:
-            # Mode 2
-            self.vocabulary.read_only()
 
         self.logger.info("Creating corpus objects...")
         self.train_corpus = Corpus(
             sentences=self.train_sentences, vocabulary=self.vocabulary, device=self.device
         )
 
-        self.vocabulary.read_only()
+        if not self.vocabulary.embeddings_vocab:
+            # If we have loaded embeddings, also add dev and tests words.
+            self.vocabulary.read_only()
 
         self.dev_corpus = (
             Corpus(
@@ -76,3 +76,5 @@ class Treebank(LoggerMixin):
             if self.test_sentences
             else None
         )
+
+        self.vocabulary.read_only()

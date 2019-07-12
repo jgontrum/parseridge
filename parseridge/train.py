@@ -6,6 +6,7 @@ from torch.optim import Adam
 
 from parseridge import formatter, logger
 from parseridge.corpus.treebank import Treebank
+from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.baseline_model import BaselineModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
@@ -14,6 +15,9 @@ from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.training.callbacks.evaluation_callback import EvaluationCallback
 from parseridge.parser.training.callbacks.gradient_clipping_callback import (
     GradientClippingCallback,
+)
+from parseridge.parser.training.callbacks.partial_freeze_embeddings_callback import (
+    PartialFreezeEmbeddingsCallback,
 )
 from parseridge.parser.training.callbacks.progress_bar_callback import ProgressBarCallback
 from parseridge.parser.training.callbacks.save_model_callback import SaveModelCallback
@@ -40,32 +44,34 @@ if __name__ == "__main__":
         if args.seed:
             set_seed(args.seed)
 
-        # Load the corpora
-        treebank = Treebank(
-            train_io=open(args.train_corpus),
-            dev_io=open(args.dev_corpus),
-            test_io=open(args.test_corpus),
-            device=args.device,
-        )
-
         # Load external embeddings
         if args.embeddings_file:
             logger.info(f"Loading embeddings from '{args.embeddings_file}'...")
             embeddings = ExternalEmbeddings(
-                path=args.embeddings_file,
-                vendor=args.embeddings_vendor,
-                freeze=args.freeze_embeddings,
+                path=args.embeddings_file, vendor=args.embeddings_vendor
             )
+
+            vocabulary = Vocabulary(embeddings_vocab=embeddings.vocab)
 
             if embeddings.dim != args.embedding_size:
                 logger.warning(
                     f"Embedding dimension mismatch: External embeddings have "
                     f"{embeddings.dim} dimensions, settings require "
-                    f"{args.embedding_size} dimensions. Adapting settings and continue."
+                    f"{args.embedding_size} dimensions. Overwriting settings..."
                 )
                 args.embedding_size = embeddings.dim
         else:
             embeddings = None
+            vocabulary = None
+
+        # Load the corpora
+        treebank = Treebank(
+            train_io=open(args.train_corpus),
+            dev_io=open(args.dev_corpus),
+            test_io=open(args.test_corpus),
+            vocabulary=vocabulary,
+            device=args.device,
+        )
 
         # Configure the machine learning model
         model = BaselineModel(
@@ -81,10 +87,13 @@ if __name__ == "__main__":
             input_encoder_type=args.input_encoder_type,
             relation_mlp_layers=args.relation_mlp_layers,
             transition_mlp_layers=args.transition_mlp_layers,
+            embeddings=embeddings,
             device=args.device,
         ).to(args.device)
 
-        optimizer = Adam(model.parameters(), lr=0, weight_decay=0)
+        optimizer = Adam(
+            model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+        )
 
         # Set-up callbacks for the training and the evaluation.
         evaluation_callbacks = [
@@ -111,6 +120,14 @@ if __name__ == "__main__":
         if args.gradient_clipping:
             training_callbacks.append(
                 GradientClippingCallback(threshold=args.gradient_clipping)
+            )
+
+        if embeddings and args.freeze_embeddings:
+            training_callbacks.append(
+                PartialFreezeEmbeddingsCallback(
+                    freeze_indices=embeddings.freeze_indices,
+                    embedding_layer=model.input_encoder.token_embeddings,
+                )
             )
 
         # Get loss function

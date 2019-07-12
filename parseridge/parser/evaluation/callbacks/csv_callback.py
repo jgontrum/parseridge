@@ -15,6 +15,7 @@ class CSVReporter(EvalCallback):
             self.file = open(csv_path, mode="w")
 
             fieldnames = [
+                "epoch",
                 "train_las",
                 "train_uas",
                 "dev_las",
@@ -33,11 +34,12 @@ class CSVReporter(EvalCallback):
             self.file.close()
 
     def on_eval_end(
-        self, scores: Dict[str, Dict[str, float]], loss: float, **kwargs: Any
+        self, scores: Dict[str, Dict[str, float]], loss: float, epoch: int, **kwargs: Any
     ) -> None:
         if self.csv_path:
             self.writer.writerow(
                 {
+                    "epoch": epoch,
                     "train_las": scores["train"]["las"],
                     "train_uas": scores["train"]["uas"],
                     "dev_las": scores["dev"]["las"],

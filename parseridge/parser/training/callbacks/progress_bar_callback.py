@@ -30,7 +30,7 @@ class ProgressBarCallback(Callback):
     ) -> None:
         self.current_epoch = epoch
 
-        self._pbar = tqdm(total=len(training_data), leave=False)
+        self._pbar = tqdm(total=len(training_data), leave=True)
 
         self._pbar.set_description(
             self.template.format(epoch=self.current_epoch, epochs=self.num_epochs, loss=0)

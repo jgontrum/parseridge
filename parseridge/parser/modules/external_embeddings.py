@@ -5,13 +5,13 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class ExternalEmbeddings(LoggerMixin):
-    def __init__(self, path, vendor="glove", freeze=True):
+    def __init__(self, path, vendor="glove"):
         if vendor == "glove":
             self.token_to_embedding = self._load_glove(path)
         else:
             raise ValueError(f"Vendor '{vendor}' not supported.")
 
-        self.freeze = freeze
+        self.freeze_indices = None
         self.dim = next(iter(self.token_to_embedding.values())).size
 
     @staticmethod
@@ -39,11 +39,13 @@ class ExternalEmbeddings(LoggerMixin):
 
             embeddings.append(self.token_to_embedding[token])
 
+        self.freeze_indices = torch.arange(start=2, end=len(embeddings), device=device)
+
         np_embeddings = np.array(embeddings)
 
         token_embedding_weights = torch.from_numpy(np_embeddings).float().to(device)
 
-        return torch.nn.Parameter(token_embedding_weights, requires_grad=not self.freeze)
+        return torch.nn.Parameter(token_embedding_weights, requires_grad=True)
 
     @property
     def vocab(self):

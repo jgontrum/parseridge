@@ -55,7 +55,7 @@ class Evaluator(LoggerMixin):
             "test": {"las": test_las, "uas": test_uas},
         }
 
-        self.callback_handler.on_eval_end(scores=scores, loss=loss)
+        self.callback_handler.on_eval_end(scores=scores, loss=loss, epoch=epoch)
 
         return scores
 
