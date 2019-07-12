@@ -29,9 +29,9 @@ model:
     margin_threshold: 1.0
 
   corpus:
-    train_corpus: data/UD_English-GUM/en_gum-ud-train.conllu
-    dev_corpus: data/UD_English-GUM/en_gum-ud-dev.conllu
-    test_corpus: data/UD_English-GUM/en_gum-ud-test.conllu
+    train_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-train.conllu
+    dev_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-dev.conllu
+    test_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-test.conllu
     oov_probability: 0.00
     token_dropout: 0.00
 
