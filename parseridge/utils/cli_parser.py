@@ -2,6 +2,8 @@ import argparse
 
 from distutils.util import strtobool
 
+from parseridge.parser.activation import ACTIVATION_FUNCTIONS
+
 
 def parse_train_cli_arguments():
     parser = argparse.ArgumentParser(
@@ -114,6 +116,24 @@ def parse_train_cli_arguments():
         nargs="+",
         help="List of sizes of the layers in the MLP for the transitions.",
         required=False,
+    )
+
+    nn_group.add_argument(
+        "--relation_mlp_activation",
+        type=str,
+        default="tanh",
+        help="Activation function for the relation MLP.",
+        required=False,
+        choices=list(ACTIVATION_FUNCTIONS.keys()),
+    )
+
+    nn_group.add_argument(
+        "--transition_mlp_activation",
+        type=str,
+        default="tanh",
+        help="Activation function for the transition MLP.",
+        required=False,
+        choices=list(ACTIVATION_FUNCTIONS.keys()),
     )
 
     regularization_group = parser.add_argument_group("Regularization")

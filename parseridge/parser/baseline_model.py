@@ -32,6 +32,8 @@ class BaselineModel(Module):
         input_encoder_type: str = "lstm",
         transition_mlp_layers: List[int] = None,
         relation_mlp_layers: List[int] = None,
+        transition_mlp_activation: nn.Module = nn.Tanh,
+        relation_mlp_activation: nn.Module = nn.Tanh,
         embeddings: ExternalEmbeddings = None,
         device: str = "cpu",
     ) -> None:
@@ -42,14 +44,14 @@ class BaselineModel(Module):
         self.relations = relations
         self.vocabulary = vocabulary
 
+        self.input_encoder_type = input_encoder_type
+
         self.embedding_size = embedding_size
         self.lstm_hidden_size = lstm_hidden_size
-
         self.lstm_dropout = lstm_dropout
-        self.mlp_dropout = mlp_dropout
-
-        self.lstm_in_size = self.embedding_size
         self.lstm_layers = lstm_layers
+
+        self.mlp_dropout = mlp_dropout
 
         if relation_mlp_layers is None:
             relation_mlp_layers = [100]
@@ -67,15 +69,15 @@ class BaselineModel(Module):
         """ Module definitions """
 
         self.input_encoder = InputEncoder(
-            token_vocabulary=vocabulary,
-            token_embedding_size=embedding_size,
-            hidden_size=lstm_hidden_size,
-            layers=lstm_layers,
-            dropout=lstm_dropout,
+            token_vocabulary=self.vocabulary,
+            token_embedding_size=self.embedding_size,
+            hidden_size=self.lstm_hidden_size,
+            layers=self.lstm_layers,
+            dropout=self.lstm_dropout,
             sum_directions=False,
             reduce_dimensionality=False,
-            mode=input_encoder_type,
-            device=device,
+            mode=self.input_encoder_type,
+            device=self.device,
         )
 
         self.mlp_in_size = (
@@ -87,8 +89,8 @@ class BaselineModel(Module):
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
-            device=device,
+            activation=transition_mlp_activation,
+            device=self.device,
         )
 
         self.relation_mlp = MultilayerPerceptron(
@@ -96,13 +98,14 @@ class BaselineModel(Module):
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
-            device=device,
+            activation=relation_mlp_activation,
+            device=self.device,
         )
 
         self._mlp_padding_param = nn.Parameter(
             torch.zeros(self.input_encoder.output_size, dtype=torch.float)
         )
+        self._mlp_padding = None
 
         initialize_xavier_dynet_(self)
 

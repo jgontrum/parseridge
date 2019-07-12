@@ -7,6 +7,7 @@ from torch.optim import Adam
 from parseridge import formatter, logger
 from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.baseline_model import BaselineModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
@@ -92,6 +93,8 @@ if __name__ == "__main__":
             relation_mlp_layers=args.relation_mlp_layers,
             transition_mlp_layers=args.transition_mlp_layers,
             embeddings=embeddings,
+            transition_mlp_activation=ACTIVATION_FUNCTIONS[args.transition_mlp_activation],
+            relation_mlp_activation=ACTIVATION_FUNCTIONS[args.relation_mlp_activation],
             device=args.device,
         ).to(args.device)
 

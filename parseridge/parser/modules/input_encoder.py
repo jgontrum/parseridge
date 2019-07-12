@@ -39,15 +39,6 @@ class InputEncoder(Module):
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
         )
 
-        # if self.positional_embedding_size:
-        #     self.position_embeddings = PositionalEmbeddings(
-        #         embedding_size=self.positional_embedding_size,
-        #         max_length=self.max_sentence_length,
-        #         device=self.device
-        #     )
-        #
-        #     self.output_size += self.positional_embedding_size
-
         if self.reduce_dimensionality:
             self.dimensionality_reducer = nn.Sequential(
                 nn.Linear(token_embedding_size, self.reduce_dimensionality), nn.PReLU()
