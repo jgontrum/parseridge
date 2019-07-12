@@ -972,7 +972,7 @@ python-versions = "*"
 version = "0.5.5"
 
 [[package]]
-category = "dev"
+category = "main"
 description = "YAML parser and emitter for Python"
 name = "pyyaml"
 optional = false
@@ -1261,7 +1261,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pathlib2", "contextlib2", "unittest2"]
 
 [metadata]
-content-hash = "e780a157f77bebc97d22e5e1729e8492b01f133b8b10843fd56a5ce3c52b8532"
+content-hash = "6f76f1b43bdab0aac3164d7f43611b545738e19e6b486fc9e6fd84c089008e6c"
 python-versions = "^3.7"
 
 [metadata.hashes]
