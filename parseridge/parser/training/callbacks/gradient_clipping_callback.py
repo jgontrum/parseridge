@@ -12,4 +12,4 @@ class GradientClippingCallback(Callback):
     threshold: float = 10.0
 
     def on_backward_end(self, model: Module, **kwargs: Any) -> None:
-        torch.nn.utils.clip_grad_norm_(model.parameters(), self.threshold)
+        torch.nn.utils.clip_grad_value_(model.parameters(), self.threshold)
