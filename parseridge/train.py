@@ -138,10 +138,11 @@ if __name__ == "__main__":
         if embeddings and args.freeze_embeddings:
             training_callbacks.append(
                 PartialFreezeEmbeddingsCallback(
-                    freeze_indices=embeddings.freeze_indices,
+                    freeze_indices=embeddings.freeze_indices.copy(),
                     embedding_layer=model.input_encoder.token_embeddings,
                 )
             )
+            del embeddings
 
         # Get loss function
         loss_function = {
