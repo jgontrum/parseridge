@@ -138,7 +138,7 @@ if __name__ == "__main__":
         if embeddings and args.freeze_embeddings:
             training_callbacks.append(
                 PartialFreezeEmbeddingsCallback(
-                    freeze_indices=embeddings.freeze_indices.copy(),
+                    freeze_indices=embeddings.freeze_indices.clone(),
                     embedding_layer=model.input_encoder.token_embeddings,
                 )
             )
