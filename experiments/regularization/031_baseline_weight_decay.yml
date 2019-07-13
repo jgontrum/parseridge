@@ -12,7 +12,7 @@ experiment:
   experiment_name: 031_baseline_weight_decay
   repository: git@github.com:jgontrum/parseridge.git
   python_bin: python
-  commit: 88747027cc142b7a6bc5a264bc6b127d86fcf94c
+  commit: 4d8102e8ad90c674435db5280948ae1e184367e3
   code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
   model_save_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/models
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
