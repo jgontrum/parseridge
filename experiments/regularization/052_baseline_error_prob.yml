@@ -1,0 +1,66 @@
+# Experiment definition to be used with the `run_experiment.py` script.
+# The structuring is only used to group the parameters for a better overview,
+# all keys and values are passed to the `train.py` script, except for
+# 'repository', 'code_path', 'commit', and 'python_bin.
+# The path definitions may use template variables from other keys.
+# Note: Paths are relative to experiment.code_path, so best use absolute paths.
+
+# Experiment: Regularization / 052
+# Description: Baseline experiments with different error probabilities
+
+experiment:
+  experiment_name: 052_baseline_error_prob
+  repository: git@github.com:jgontrum/parseridge.git
+  python_bin: python
+  commit: 9dbdfd9f9bd44670ea06fcf83ff38c6ed2329b01
+  code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
+  model_save_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/models
+  csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
+  log_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/experiment.log
+  google_sheets_id: 1YaK_9uzUxMVLFzOIjXQFZnp9e-p4uqI26tMTftOpOgY
+  google_sheets_auth_path: /usit/abel/u1/jgontrum/projects/parseridge/google_sheets_auth.json
+  show_progress_bars: no
+
+model:
+  parsing:
+    num_stack: 3
+    num_buffer: 1
+    error_probability: 0.4
+    margin_threshold: 1.0
+
+  corpus:
+    train_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-train.conllu
+    dev_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-dev.conllu
+    test_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-test.conllu
+    oov_probability: 0.00
+    token_dropout: 0.00
+
+  embeddings:
+    embedding_size: 300
+    embeddings_file: /usit/abel/u1/jgontrum/nobackup/embeddings/fasttext/crawl-300d-2M.vec
+    embeddings_vendor: fasttext
+    freeze_embeddings: yes
+
+  input_encoder:
+    input_encoder_type: lstm
+    lstm_hidden_size: 125
+    lstm_layers: 2
+    lstm_dropout: 0.33
+
+  mlp:
+    relation_mlp_layers: [100]
+    transition_mlp_layers: [100]
+    mlp_dropout: 0.25
+    transition_mlp_activation: gelu
+    relation_mlp_activation: gelu
+
+training:
+  seed: 123456
+  epochs: 50
+  device: cpu
+  update_frequency: 50
+  learning_rate: 0.001
+  weight_decay: 0.0
+  gradient_clipping: 5
+  batch_size: 4
+  loss_function: MaxMargin
