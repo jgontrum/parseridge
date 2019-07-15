@@ -26,7 +26,7 @@ model:
     num_stack: 3
     num_buffer: 1
     error_probability: 0.1
-    margin_threshold: 0.1
+    margin_threshold: 1.0
 
   corpus:
     train_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-train.conllu
