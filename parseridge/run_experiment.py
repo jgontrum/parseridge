@@ -5,6 +5,8 @@ from copy import copy
 
 import yaml
 
+IGNORE_KEYS = ["repository", "code_path", "commit", "python_bin", "experiment_group"]
+
 
 def get_args():
     parser = argparse.ArgumentParser(
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     # Get all the arguments we want to pass to the trainer
     training_args = {}
     for k, v in dict_generator(experiment_definition):
-        if k not in ["repository", "code_path", "commit", "python_bin"]:
+        if k not in IGNORE_KEYS:
             training_args[k] = v
 
     arguments = []
