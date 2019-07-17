@@ -15,6 +15,20 @@ from parseridge.parser.modules.utils import mask_
 
 
 class Attention(Module):
+    SCORING_FUNCTIONS = {
+        "dot": lambda kwargs: DotSimilarity(**kwargs),
+        "scaled_dot": lambda kwargs: ScaledDotSimilarity(**kwargs),
+        "general": lambda kwargs: GeneralSimilarity(**kwargs),
+        "concat": lambda kwargs: ConcatSimilarity(**kwargs),
+        "learned": lambda kwargs: LearnedSimilarity(**kwargs),
+    }
+
+    NORMALIZATION_FUNCTIONS = {
+        "softmax": lambda t: torch.nn.functional.softmax(t, dim=1),
+        "sigmoid": lambda t: torch.sigmoid(t),
+        "identity": lambda t: t,
+    }
+
     def __init__(
         self,
         query_dim: int,
@@ -31,6 +45,9 @@ class Attention(Module):
         super().__init__(device=device)
         self.input_size = key_dim
         self.output_size = key_dim if not key_output_dim else key_output_dim
+
+        if not value_dim:
+            value_dim = key_dim
 
         # Add input transformation layers if required
         if query_output_dim:
@@ -55,22 +72,9 @@ class Attention(Module):
                 "value_dim": value_dim if not value_output_dim else value_output_dim,
             }
         )
-        similarity_functions = {
-            "dot": lambda kwargs: DotSimilarity(**kwargs),
-            "scaled_dot": lambda kwargs: ScaledDotSimilarity(**kwargs),
-            "general": lambda kwargs: GeneralSimilarity(**kwargs),
-            "concat": lambda kwargs: ConcatSimilarity(**kwargs),
-            "learned": lambda kwargs: LearnedSimilarity(**kwargs),
-        }
 
-        normalization_functions = {
-            "softmax": lambda t: torch.nn.functional.softmax(t, dim=1),
-            "sigmoid": lambda t: torch.sigmoid(t),
-            "identity": lambda t: t,
-        }
-
-        self.similarity_function = similarity_functions[similarity](kwargs)
-        self.normalize = normalization_functions[normalization]
+        self.similarity_function = self.SCORING_FUNCTIONS[similarity](kwargs)
+        self.normalize = self.NORMALIZATION_FUNCTIONS[normalization]
 
     def forward(
         self, queries: Tensor, keys: Tensor, sequence_lengths: Tensor, values: Tensor = None

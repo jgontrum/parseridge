@@ -13,7 +13,7 @@ class MultilayerPerceptron(Module):
         activation=nn.Tanh,
         device="cpu",
     ):
-        super(MultilayerPerceptron, self).__init__()
+        super().__init__(device=device)
 
         self.input_size = input_size
         self.output_size = output_size

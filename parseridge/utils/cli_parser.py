@@ -3,6 +3,7 @@ import argparse
 from distutils.util import strtobool
 
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
+from parseridge.parser.modules.attention.soft_attention import Attention
 
 
 def parse_train_cli_arguments():
@@ -234,6 +235,59 @@ def parse_train_cli_arguments():
         help="Name of the loss function to use.",
         required=False,
         choices=["MaxMargin", "CrossEntropy"],
+    )
+
+    attention_group = parser.add_argument_group("Attention")
+    attention_group.add_argument(
+        "--scale_query",
+        type=int,
+        default=None,
+        help="If set, scale the query vectors to this dimension.",
+        required=False,
+    )
+
+    attention_group.add_argument(
+        "--scale_key",
+        type=int,
+        default=None,
+        help="If set, scale the key vectors to this dimension.",
+        required=False,
+    )
+
+    attention_group.add_argument(
+        "--scale_value",
+        type=int,
+        default=None,
+        help="If set, scale the value vectors to this dimension. "
+        "Must be equal to 'scale_key'.",
+        required=False,
+    )
+
+    attention_group.add_argument(
+        "--scoring_function",
+        type=str,
+        default="dot",
+        help="Name of the scoring function to use.",
+        required=False,
+        choices=list(Attention.SCORING_FUNCTIONS.keys()),
+    )
+
+    attention_group.add_argument(
+        "--normalization_function",
+        type=str,
+        default="softmax",
+        help="Name of the normalization function to use.",
+        required=False,
+        choices=list(Attention.NORMALIZATION_FUNCTIONS.keys()),
+    )
+
+    attention_group.add_argument(
+        "--self_attention_heads",
+        type=int,
+        default=10,
+        help="Number of heads in the self-attention encoder if used. "
+        "The encoding dimensions must be dividable by this number.",
+        required=False,
     )
 
     misc_group = parser.add_argument_group("Misc.")

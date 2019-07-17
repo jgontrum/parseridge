@@ -13,8 +13,9 @@ class InputEncoder(Module):
         self,
         token_vocabulary,
         token_embedding_size,
-        hidden_size,
+        hidden_size=125,
         layers=2,
+        heads=10,
         dropout=0.33,
         max_sentence_length=100,
         sum_directions=True,
@@ -65,7 +66,7 @@ class InputEncoder(Module):
             )
 
             self.multihead_attention = MultiheadAttention(
-                embed_dim=self.input_size, num_heads=10
+                embed_dim=self.input_size, num_heads=heads
             )
 
             self.output_size = self.input_size

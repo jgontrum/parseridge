@@ -45,7 +45,7 @@ class ConcatSimilarity(Module):
     def __init__(
         self,
         key_dim: int,
-        hidden_dim: int,
+        hidden_dim: Optional[int] = None,
         query_dim: Optional[int] = None,
         value_dim: Optional[int] = None,
         bias=False,
@@ -56,8 +56,8 @@ class ConcatSimilarity(Module):
         # but simplified by Luong et al. (2015) and requires two weight matrices
         # that are learned during training.
 
-        hidden_dim = hidden_dim if hidden_dim else query_dim
-        key_dim = key_dim if key_dim else query_dim
+        hidden_dim = hidden_dim if hidden_dim else key_dim
+        query_dim = query_dim if query_dim else key_dim
 
         self.param_W = nn.Linear(query_dim + key_dim, hidden_dim, bias=bias)
         self.param_v = nn.Linear(hidden_dim, 1, bias=bias)
@@ -85,7 +85,7 @@ class GeneralSimilarity(Module):
         key_dim = key_dim if key_dim else query_dim
 
         self.param_W = nn.Linear(key_dim, query_dim, bias=bias)
-        self.dot = DotSimilarity()
+        self.dot = DotSimilarity(key_dim)
 
         initialize_xavier_dynet_(self)
 

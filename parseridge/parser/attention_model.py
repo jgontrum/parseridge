@@ -7,6 +7,7 @@ from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.attention.universal_attention import UniversalAttention
 from parseridge.parser.modules.data_parallel import Module
+from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import (
@@ -27,9 +28,18 @@ class AttentionModel(Module):
         embedding_size: int = 100,
         lstm_hidden_size: int = 125,
         lstm_layers: int = 2,
+        input_encoder_type: str = "lstm",
         transition_mlp_layers: List[int] = None,
         relation_mlp_layers: List[int] = None,
-        embeddings: List[int] = None,
+        transition_mlp_activation: nn.Module = nn.Tanh,
+        relation_mlp_activation: nn.Module = nn.Tanh,
+        embeddings: ExternalEmbeddings = None,
+        self_attention_heads: int = 10,
+        scale_query: int = None,
+        scale_key: int = None,
+        scale_value: int = None,
+        scoring_function: str = "dot",
+        normalization_function: str = "softmax",
         device: str = "cpu",
     ) -> None:
 
@@ -39,14 +49,14 @@ class AttentionModel(Module):
         self.relations = relations
         self.vocabulary = vocabulary
 
+        self.input_encoder_type = input_encoder_type
+
         self.embedding_size = embedding_size
         self.lstm_hidden_size = lstm_hidden_size
-
         self.lstm_dropout = lstm_dropout
-        self.mlp_dropout = mlp_dropout
-
-        self.lstm_in_size = self.embedding_size
         self.lstm_layers = lstm_layers
+
+        self.mlp_dropout = mlp_dropout
 
         if relation_mlp_layers is None:
             relation_mlp_layers = [100]
@@ -63,32 +73,38 @@ class AttentionModel(Module):
 
         """ Module definitions """
 
-        """RNN that encodes the input sentence."""
         self.input_encoder = InputEncoder(
-            token_vocabulary=vocabulary,
-            token_embedding_size=embedding_size,
-            hidden_size=lstm_hidden_size,
-            layers=lstm_layers,
-            dropout=lstm_dropout,
-            positional_embedding_size=False,
+            token_vocabulary=self.vocabulary,
+            token_embedding_size=self.embedding_size,
+            hidden_size=self.lstm_hidden_size,
+            layers=self.lstm_layers,
+            dropout=self.lstm_dropout,
             sum_directions=False,
             reduce_dimensionality=False,
-            device=device,
+            mode=self.input_encoder_type,
+            heads=self_attention_heads,
+            device=self.device,
         )
 
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
         self.stack_attention = UniversalAttention(
             query_dim=self.input_encoder.output_size,
-            similarity="learned",
-            normalization="softmax",
+            similarity=scoring_function,
+            normalization=normalization_function,
+            query_output_dim=scale_query,
+            key_output_dim=scale_key,
+            value_output_dim=scale_value,
             device=device,
         )
 
         self.buffer_attention = UniversalAttention(
             query_dim=self.input_encoder.output_size,
-            similarity="learned",
-            normalization="softmax",
+            similarity=scoring_function,
+            normalization=normalization_function,
+            query_output_dim=scale_query,
+            key_output_dim=scale_key,
+            value_output_dim=scale_value,
             device=device,
         )
 
@@ -101,8 +117,8 @@ class AttentionModel(Module):
             hidden_sizes=transition_mlp_layers,
             output_size=self.num_transitions,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
-            device=device,
+            activation=transition_mlp_activation,
+            device=self.device,
         )
 
         self.relation_mlp = MultilayerPerceptron(
@@ -110,13 +126,14 @@ class AttentionModel(Module):
             hidden_sizes=relation_mlp_layers,
             output_size=self.num_labels,
             dropout=self.mlp_dropout,
-            activation=nn.Tanh,
-            device=device,
+            activation=relation_mlp_activation,
+            device=self.device,
         )
 
         self._mlp_padding_param = nn.Parameter(
             torch.zeros(self.input_encoder.output_size, dtype=torch.float)
         )
+        self._mlp_padding = None
 
         initialize_xavier_dynet_(self)
 
