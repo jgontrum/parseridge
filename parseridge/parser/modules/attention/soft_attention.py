@@ -126,15 +126,15 @@ class Attention(Module):
 
     def _transform_query(self, query: Tensor) -> Tensor:
         if hasattr(self, "query_transform"):
-            return self.query_transform(query)
+            return torch.tanh(self.query_transform(query))
         return query
 
     def _transform_keys(self, keys: Tensor) -> Tensor:
         if hasattr(self, "key_transform"):
-            return self.key_transform(keys)
+            return torch.tanh(self.key_transform(keys))
         return keys
 
     def _transform_values(self, values: Tensor) -> Tensor:
         if hasattr(self, "value_transform"):
-            return self.value_transform(values)
+            return torch.tanh(self.value_transform(values))
         return values
