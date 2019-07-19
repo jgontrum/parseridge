@@ -9,6 +9,7 @@ from parseridge.parser.modules.attention.similarity_functions import (
     ScaledDotSimilarity,
     ConcatSimilarity,
     LearnedSimilarity,
+    DummyScoring,
 )
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.utils import mask_
@@ -21,6 +22,7 @@ class Attention(Module):
         "general": lambda kwargs: GeneralSimilarity(**kwargs),
         "concat": lambda kwargs: ConcatSimilarity(**kwargs),
         "learned": lambda kwargs: LearnedSimilarity(**kwargs),
+        "dummy": lambda kwargs: DummyScoring(**kwargs),
     }
 
     NORMALIZATION_FUNCTIONS = {
@@ -126,15 +128,15 @@ class Attention(Module):
 
     def _transform_query(self, query: Tensor) -> Tensor:
         if hasattr(self, "query_transform"):
-            return torch.tanh(self.query_transform(query))
+            return self.query_transform(query)
         return query
 
     def _transform_keys(self, keys: Tensor) -> Tensor:
         if hasattr(self, "key_transform"):
-            return torch.tanh(self.key_transform(keys))
+            return self.key_transform(keys)
         return keys
 
     def _transform_values(self, values: Tensor) -> Tensor:
         if hasattr(self, "value_transform"):
-            return torch.tanh(self.value_transform(values))
+            return self.value_transform(values)
         return values
