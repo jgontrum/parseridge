@@ -10,6 +10,7 @@ from parseridge.parser.modules.attention.similarity_functions import (
     ScaledDotSimilarity,
     ConcatSimilarity,
     LearnedSimilarity,
+    DummyScoring,
 )
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.utils import mask_
@@ -22,6 +23,7 @@ class Attention(Module):
         "general": lambda kwargs: GeneralSimilarity(**kwargs),
         "concat": lambda kwargs: ConcatSimilarity(**kwargs),
         "learned": lambda kwargs: LearnedSimilarity(**kwargs),
+        "dummy": lambda kwargs: DummyScoring(**kwargs),
     }
 
     NORMALIZATION_FUNCTIONS = {
