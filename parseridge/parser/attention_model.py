@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
-from parseridge.parser.modules.attention.soft_attention import Attention
+from parseridge.parser.modules.attention.universal_attention import UniversalAttention
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
@@ -13,7 +13,6 @@ from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import (
     initialize_xavier_dynet_,
     lookup_tensors_for_indices,
-    pad_tensor_list,
 )
 
 
@@ -89,9 +88,8 @@ class AttentionModel(Module):
 
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
-        self.stack_attention = Attention(
+        self.stack_attention = UniversalAttention(
             query_dim=self.input_encoder.output_size,
-            key_dim=self.input_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -100,9 +98,8 @@ class AttentionModel(Module):
             device=device,
         )
 
-        self.buffer_attention = Attention(
+        self.buffer_attention = UniversalAttention(
             query_dim=self.input_encoder.output_size,
-            key_dim=self.input_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -160,34 +157,17 @@ class AttentionModel(Module):
         buffers: torch.Tensor,
         buffer_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        # Get the first token from the stack and the buffer (padded of needed)
-        stack_queries = self._get_padded_tensors_for_indices(
-            indices=buffers,
-            lengths=buffer_lengths,
-            contextualized_input_batch=contextualized_input_batch,
-            max_length=1,
-        )
-
-        buffer_queries = self._get_padded_tensors_for_indices(
-            indices=stacks,
-            lengths=stack_lengths,
-            contextualized_input_batch=contextualized_input_batch,
-            max_length=1,
-        )
-
-        # Look-up the whole unpadded buffer and stack sequence
-        stack_keys = lookup_tensors_for_indices(stacks, contextualized_input_batch)
-        buffer_keys = lookup_tensors_for_indices(buffers, contextualized_input_batch)
+        stacks = lookup_tensors_for_indices(stacks, contextualized_input_batch)
+        buffers = lookup_tensors_for_indices(buffers, contextualized_input_batch)
 
         # Compute a representation of the stack / buffer as an weighted average based
         # on the attention weights.
         stack_batch_attention, _, stack_attention_energies = self.stack_attention(
-            queries=stack_queries, keys=stack_keys, sequence_lengths=stack_lengths
+            keys=stacks, sequence_lengths=stack_lengths
         )
 
         buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
-            queries=buffer_queries, keys=buffer_keys, sequence_lengths=buffer_lengths
+            keys=buffers, sequence_lengths=buffer_lengths
         )
 
         mlp_input = torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
@@ -231,43 +211,3 @@ class AttentionModel(Module):
         )
 
         return transitions_output, relations_output
-
-    def _get_padded_tensors_for_indices(
-        self,
-        indices: torch.Tensor,
-        lengths: torch.Tensor,
-        contextualized_input_batch: torch.Tensor,
-        max_length: int,
-    ):
-        indices = pad_tensor_list(indices, length=max_length)
-        # Lookup the contextualized tokens from the indices
-        batch = lookup_tensors_for_indices(indices, contextualized_input_batch)
-
-        batch_size = batch.size(0)
-        sequence_size = max(batch.size(1), max_length)
-        token_size = batch.size(2)
-
-        # Expand the padding vector over the size of the batch
-        padding_batch = self._mlp_padding.expand(batch_size, sequence_size, token_size)
-
-        if max(lengths) == 0:
-            # If the batch is completely empty, we can just return the whole padding batch
-            batch_padded = padding_batch
-        else:
-            # Build a mask and expand it over the size of the batch
-            mask = (
-                torch.arange(sequence_size, device=self.device)[None, :] < lengths[:, None]
-            )
-            mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
-
-            batch_padded = torch.where(
-                mask,  # Condition
-                batch,  # If condition is 1
-                padding_batch,  # If condition is 0
-            )
-
-            # Cut the tensor at the specified length
-            batch_padded = torch.split(batch_padded, max_length, dim=1)[0]
-
-        # Flatten the output by concatenating the token embeddings
-        return batch_padded.contiguous().view(batch_padded.size(0), -1)
