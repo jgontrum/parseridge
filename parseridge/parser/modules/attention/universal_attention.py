@@ -8,12 +8,20 @@ from parseridge.parser.modules.utils import initialize_xavier_dynet_, mask_
 
 
 class UniversalAttention(Attention):
-    def __init__(self, query_dim: int, query_output_dim: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        query_dim: int,
+        query_output_dim: Optional[int] = None,
+        key_output_dim: Optional[int] = None,
+        value_output_dim: Optional[int] = None,
+        **kwargs,
+    ):
         super().__init__(
             query_dim=query_dim,
             key_dim=query_dim,
             query_output_dim=query_output_dim,
-            key_output_dim=query_output_dim,
+            key_output_dim=key_output_dim,
+            value_output_dim=value_output_dim,
             **kwargs,
         )
 

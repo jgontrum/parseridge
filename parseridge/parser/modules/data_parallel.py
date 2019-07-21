@@ -16,7 +16,10 @@ class DataParallel(nn.DataParallel):
 
 class Module(nn.Module, LoggerMixin):
     def __init__(self, device="cpu", **kwargs):
-        super(Module, self).__init__(**kwargs)
+        super().__init__()
+        if kwargs:
+            self.logger.debug(f"Discarding passed kwargs: {kwargs}")
+
         self.device = device
 
     def parallel(self):

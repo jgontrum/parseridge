@@ -8,7 +8,7 @@ from parseridge import formatter, logger
 from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
-from parseridge.parser.baseline_model import BaselineModel
+from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
 from parseridge.parser.evaluation.callbacks.csv_callback import CSVReporter
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         )
 
         # Configure the machine learning model
-        model = BaselineModel(
+        model = ParseridgeModel(
             relations=treebank.relations,
             vocabulary=treebank.vocabulary,
             num_stack=args.num_stack,
@@ -95,6 +95,13 @@ if __name__ == "__main__":
             embeddings=embeddings,
             transition_mlp_activation=ACTIVATION_FUNCTIONS[args.transition_mlp_activation],
             relation_mlp_activation=ACTIVATION_FUNCTIONS[args.relation_mlp_activation],
+            self_attention_heads=args.self_attention_heads,
+            configuration_encoder=args.configuration_encoder,
+            scale_query=args.scale_query,
+            scale_key=args.scale_key,
+            scale_value=args.scale_value,
+            scoring_function=args.scoring_function,
+            normalization_function=args.normalization_function,
             device=args.device,
         ).to(args.device)
 

@@ -498,6 +498,12 @@ class Configuration(LoggerMixin):
         return torch.tensor(self.finished_tokens, dtype=torch.int64, device=self.device)
 
     @property
+    def reversed_finished_tokens_tensor(self):
+        return torch.tensor(
+            self.finished_tokens[::-1], dtype=torch.int64, device=self.device
+        )
+
+    @property
     def stack_tensor(self):
         return torch.tensor(self.stack, dtype=torch.int64, device=self.device)
 

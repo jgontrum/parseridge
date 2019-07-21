@@ -2,22 +2,18 @@ from typing import List, Tuple, Optional
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import (
-    initialize_xavier_dynet_,
-    lookup_tensors_for_indices,
-    pad_tensor_list,
-)
+from parseridge.parser.modules.utils import initialize_xavier_dynet_
 
 
-class BaselineModel(Module):
+class ParseridgeModel(Module):
     def __init__(
         self,
         relations: Relations,
@@ -35,6 +31,13 @@ class BaselineModel(Module):
         transition_mlp_activation: nn.Module = nn.Tanh,
         relation_mlp_activation: nn.Module = nn.Tanh,
         embeddings: ExternalEmbeddings = None,
+        self_attention_heads: int = 10,
+        configuration_encoder: str = "static",
+        scale_query: int = None,
+        scale_key: int = None,
+        scale_value: int = None,
+        scoring_function: str = "dot",
+        normalization_function: str = "softmax",
         device: str = "cpu",
     ) -> None:
 
@@ -77,12 +80,25 @@ class BaselineModel(Module):
             sum_directions=False,
             reduce_dimensionality=False,
             mode=self.input_encoder_type,
+            heads=self_attention_heads,
             device=self.device,
         )
 
-        self.mlp_in_size = (
-            self.stack_size + self.buffer_size
-        ) * self.input_encoder.output_size
+        """Computes attention over the output of the input encoder given the state of the
+        action encoder. """
+        self.configuration_encoder = CONFIGURATION_ENCODERS[configuration_encoder](
+            model_size=self.input_encoder.output_size,
+            scale_query=scale_query,
+            scale_key=scale_key,
+            scale_value=scale_value,
+            scoring_function=scoring_function,
+            normalization_function=normalization_function,
+            num_stack=self.stack_size,
+            num_buffer=self.buffer_size,
+            device=self.device,
+        )
+
+        self.mlp_in_size = self.configuration_encoder.output_size
 
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
@@ -116,100 +132,61 @@ class BaselineModel(Module):
         self._mlp_padding = nn.Tanh()(self._mlp_padding_param)
 
     def get_contextualized_input(
-        self, token_sequences: Tensor, sentence_lengths: Tensor
-    ) -> Tensor:
+        self, token_sequences: torch.Tensor, sentence_lengths: torch.Tensor
+    ) -> torch.Tensor:
         outputs, _ = self.input_encoder(token_sequences, sentence_lengths)
         return outputs
 
     def compute_mlp_output(
         self,
-        contextualized_input_batch: Tensor,
-        stacks: Tensor,
-        buffers: Tensor,
-        stack_lengths: Tensor,
-        buffer_lengths: Tensor,
-    ) -> Tuple[Tensor, Tensor]:
+        contextualized_input_batch: torch.Tensor,
+        stacks: torch.Tensor,
+        stack_lengths: torch.Tensor,
+        buffers: torch.Tensor,
+        buffer_lengths: torch.Tensor,
+        finished_tokens: Optional[torch.Tensor] = None,
+        finished_tokens_lengths: Optional[torch.Tensor] = None,
+        sentence_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        # Lookup the contextualized tokens from the indices
-        stack_batch = self._get_padded_tensors_for_indices(
-            indices=stacks,
-            lengths=stack_lengths,
+        mlp_input = self.configuration_encoder(
             contextualized_input_batch=contextualized_input_batch,
-            max_length=self.stack_size,
+            stacks=stacks,
+            buffers=buffers,
+            stack_lengths=stack_lengths,
+            buffer_lengths=buffer_lengths,
+            finished_tokens=finished_tokens,
+            finished_tokens_lengths=finished_tokens_lengths,
+            sentence_lengths=sentence_lengths,
+            padding=self._mlp_padding,
         )
 
-        buffer_batch = self._get_padded_tensors_for_indices(
-            indices=buffers,
-            lengths=buffer_lengths,
-            contextualized_input_batch=contextualized_input_batch,
-            max_length=self.buffer_size,
-        )
-
-        mlp_input = torch.cat((stack_batch, buffer_batch), dim=1)
-
+        # Use output and feed it into MLP
         transitions_output = self.transition_mlp(mlp_input)
         relations_output = self.relation_mlp(mlp_input)
 
         return transitions_output, relations_output
 
-    def _get_padded_tensors_for_indices(
-        self,
-        indices: Tensor,
-        lengths: Tensor,
-        contextualized_input_batch: Tensor,
-        max_length: int,
-    ):
-        indices = pad_tensor_list(indices, length=max_length)
-        # Lookup the contextualized tokens from the indices
-        batch = lookup_tensors_for_indices(indices, contextualized_input_batch)
-
-        batch_size = batch.size(0)
-        sequence_size = max(batch.size(1), max_length)
-        token_size = batch.size(2)
-
-        # Expand the padding vector over the size of the batch
-        padding_batch = self._mlp_padding.expand(batch_size, sequence_size, token_size)
-
-        if max(lengths) == 0:
-            # If the batch is completely empty, we can just return the whole padding batch
-            batch_padded = padding_batch
-        else:
-            # Build a mask and expand it over the size of the batch
-            mask = (
-                torch.arange(sequence_size, device=self.device)[None, :] < lengths[:, None]
-            )
-            mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
-
-            batch_padded = torch.where(
-                mask,  # Condition
-                batch,  # If condition is 1
-                padding_batch,  # If condition is 0
-            )
-
-            # Cut the tensor at the specified length
-            batch_padded = torch.split(batch_padded, max_length, dim=1)[0]
-
-        # Flatten the output by concatenating the token embeddings
-        return batch_padded.contiguous().view(batch_padded.size(0), -1)
-
     def forward(
         self,
-        stacks: Tensor,
-        buffers: Tensor,
-        stack_lengths: Optional[Tensor] = None,
-        buffer_lengths: Optional[Tensor] = None,
-        token_sequences: Optional[Tensor] = None,
-        sentence_lengths: Optional[Tensor] = None,
-        contextualized_input_batch: Optional[List[Tensor]] = None,
-    ) -> Tuple[Tensor, Tensor]:
+        stacks: torch.Tensor,
+        stack_lengths: torch.Tensor,
+        buffers: torch.Tensor,
+        buffer_lengths: torch.Tensor,
+        sentence_tokens: Optional[torch.Tensor] = None,
+        sentence_lengths: Optional[torch.Tensor] = None,
+        contextualized_input_batch: Optional[List[torch.Tensor]] = None,
+        finished_tokens: Optional[torch.Tensor] = None,
+        finished_tokens_lengths: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if contextualized_input_batch is None:
-            assert token_sequences is not None
+            assert sentence_tokens is not None
             assert sentence_lengths is not None
             # Pass all sentences through the input encoder to create contextualized
             # token tensors.
             contextualized_input_batch = self.get_contextualized_input(
-                token_sequences, sentence_lengths
+                sentence_tokens, sentence_lengths
             )
         else:
             # If we already have the output of the input encoder as lists,
@@ -222,6 +199,9 @@ class BaselineModel(Module):
             stack_lengths=stack_lengths,
             buffers=buffers,
             buffer_lengths=buffer_lengths,
+            sentence_lengths=sentence_lengths,
+            finished_tokens=finished_tokens,
+            finished_tokens_lengths=finished_tokens_lengths,
         )
 
         return transitions_output, relations_output
