@@ -112,6 +112,27 @@ class LearnedSimilarity(Module):
         return self.weights(keys)
 
 
+class BiaffineScoring(Module):
+    def __init__(
+        self,
+        key_dim: int,
+        query_dim: Optional[int] = None,
+        value_dim: Optional[int] = None,
+        bias=False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.biaffine = nn.Bilinear(
+            in1_features=key_dim, in2_features=query_dim, out_features=1
+        )
+
+    def forward(self, queries, keys):
+        queries = queries.unsqueeze(1)
+        queries = queries.expand(queries.size(0), keys.size(1), queries.size(2))
+        queries = queries.contiguous()
+        return self.biaffine(keys, queries)
+
+
 class DummyScoring(Module):
     """
     This function just returns "1" for every item in the sequence, making it a useful
