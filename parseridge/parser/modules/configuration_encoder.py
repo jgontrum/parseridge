@@ -215,28 +215,21 @@ class StackBufferQueryConfigurationEncoder(Module):
         stack_keys = lookup_tensors_for_indices(stacks, contextualized_input_batch)
         buffer_keys = lookup_tensors_for_indices(buffers, contextualized_input_batch)
 
-        # Add a padding vector so that even empty sequences have at least one item
-        if stack_keys.size(1) == 0:
-            stack_keys = torch.zeros(
-                (stack_keys.size(0), 1, self.model_size),
-                device=self.device,
-                requires_grad=False,
-            )
-
-        if buffer_keys.size(1) == 0:
-            buffer_keys = torch.zeros(
-                (buffer_keys.size(0), 1, self.model_size),
-                device=self.device,
-                requires_grad=False,
-            )
+        stack_keys = self._fix_empty_sequence(stack_keys)
+        buffer_keys = self._fix_empty_sequence(buffer_keys)
 
         # Add positional encoding
         stack_keys = self.positional_encoder(stack_keys)
         buffer_keys = self.positional_encoder(buffer_keys)
 
         # Take the first entry as query
-        stack_queries = self._fix_empty_sequence(stack_keys)
-        buffer_queries = self._fix_empty_sequence(buffer_keys)
+        stack_queries = buffer_keys.index_select(
+            dim=1, index=torch.zeros(1, dtype=torch.int64, device=self.device)
+        ).squeeze(1)
+
+        buffer_queries = stack_keys.index_select(
+            dim=1, index=torch.zeros(1, dtype=torch.int64, device=self.device)
+        ).squeeze(1)
 
         # Compute a representation of the stack / buffer as an weighted average based
         # on the attention weights.
