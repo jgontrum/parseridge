@@ -169,9 +169,14 @@ class DynamicTrainer(Trainer):
 
         # Create the initial configurations for all sentences in the batch
         configurations = [
-            Configuration(sentence, contextualized_input, self.model)
-            for contextualized_input, sentence in zip(
-                contextualized_tokens_batch, sentences
+            Configuration(
+                sentence,
+                contextualized_input,
+                self.model,
+                sentence_features=sentence_feature,
+            )
+            for contextualized_input, sentence_feature, sentence in zip(
+                contextualized_tokens_batch, sentence_features, sentences
             )
         ]
 
@@ -268,6 +273,12 @@ class DynamicTrainer(Trainer):
         padded_finished_tokens = pad_tensor_list(
             [c.reversed_finished_tokens_tensor for c in configurations]
         )
+        padded_sentence_features = (
+            torch.stack([c.sentence_features for c in configurations])
+            if configurations[0].sentence_features is not None
+            else None
+        )
+        sentence_ids = [c.sentence.id for c in configurations]
 
         stack_len = [len(c.stack) for c in configurations]
         buffer_len = [len(c.buffer) for c in configurations]
@@ -283,6 +294,8 @@ class DynamicTrainer(Trainer):
             finished_tokens=to_int_tensor(padded_finished_tokens, device=model.device),
             finished_tokens_lengths=to_int_tensor(finished_tokens_len, device=model.device),
             sentence_lengths=to_int_tensor(sentence_len, device=model.device),
+            sentence_features=padded_sentence_features,
+            sentence_ids=sentence_ids,
         )
 
         # Isolate the columns for the transitions

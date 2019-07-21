@@ -24,6 +24,7 @@ black = {version = "^18.3-alpha.4",allows-prereleases = true}
 pre-commit = "^1.17"
 flake8 = "^3.7"
 pyyaml = "^5.1"
+memory_profiler = "^0.55.0"
 
 [tool.black]
 line-length = 92

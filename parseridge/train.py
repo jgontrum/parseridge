@@ -8,6 +8,9 @@ from parseridge import formatter, logger
 from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
+from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
+    AttentionReporter,
+)
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
@@ -78,6 +81,14 @@ if __name__ == "__main__":
             device=args.device,
         )
 
+        attention_reporter = (
+            AttentionReporter(
+                file_path=args.attention_reporter_path, vocabulary=treebank.vocabulary
+            )
+            if args.attention_reporter_path
+            else None
+        )
+
         # Configure the machine learning model
         model = ParseridgeModel(
             relations=treebank.relations,
@@ -102,6 +113,7 @@ if __name__ == "__main__":
             scale_value=args.scale_value,
             scoring_function=args.scoring_function,
             normalization_function=args.normalization_function,
+            attention_reporter=attention_reporter,
             device=args.device,
         ).to(args.device)
 
@@ -120,6 +132,9 @@ if __name__ == "__main__":
                 hyper_parameters=vars(args),
             ),
         ]
+
+        if attention_reporter:
+            evaluation_callbacks.append(attention_reporter)
 
         training_callbacks = [
             TrainSimpleLoggerCallback(),

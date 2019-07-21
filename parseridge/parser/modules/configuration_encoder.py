@@ -1,8 +1,11 @@
-from typing import Optional
+from typing import Optional, List
 
 import torch
 from torch import Tensor
 
+from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
+    AttentionReporter,
+)
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
 from parseridge.parser.modules.attention.soft_attention import Attention
 from parseridge.parser.modules.attention.universal_attention import UniversalAttention
@@ -61,9 +64,11 @@ class UniversalConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
+        reporter: Optional[AttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.reporter = reporter
 
         self.model_size = self.input_size = model_size
 
@@ -103,23 +108,37 @@ class UniversalConfigurationEncoder(Module):
         stack_lengths: Tensor,
         buffer_lengths: Tensor,
         padding: Optional[Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
         **kwargs,
     ) -> Tensor:
-        stacks = lookup_tensors_for_indices(stacks, contextualized_input_batch)
-        buffers = lookup_tensors_for_indices(buffers, contextualized_input_batch)
+        stack_batch = lookup_tensors_for_indices(stacks, contextualized_input_batch)
+        buffer_batch = lookup_tensors_for_indices(buffers, contextualized_input_batch)
 
-        stacks = self.positional_encoder(stacks)
-        buffers = self.positional_encoder(buffers)
+        stack_batch = self.positional_encoder(stack_batch)
+        buffer_batch = self.positional_encoder(buffer_batch)
 
         # Compute a representation of the stack / buffer as an weighted average based
         # on the attention weights.
         stack_batch_attention, _, stack_attention_energies = self.stack_attention(
-            keys=stacks, sequence_lengths=stack_lengths
+            keys=stack_batch, sequence_lengths=stack_lengths
         )
 
         buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
-            keys=buffers, sequence_lengths=buffer_lengths
+            keys=buffer_batch, sequence_lengths=buffer_lengths
         )
+
+        if self.reporter:
+            self.reporter.log(
+                "buffer",
+                buffers,
+                buffer_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
+            self.reporter.log(
+                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+            )
 
         return torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 
@@ -133,9 +152,11 @@ class StackBufferQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
+        reporter: Optional[AttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.reporter = reporter
 
         self.model_size = self.input_size = model_size
 
@@ -169,6 +190,15 @@ class StackBufferQueryConfigurationEncoder(Module):
             self.stack_attention.output_size + self.buffer_attention.output_size
         )
 
+    def _fix_empty_sequence(self, tensor):
+        if tensor.size(1) == 0:
+            tensor = torch.zeros(
+                (tensor.size(0), 1, self.model_size),
+                device=self.device,
+                requires_grad=False,
+            )
+        return tensor
+
     def forward(
         self,
         contextualized_input_batch: Tensor,
@@ -177,6 +207,8 @@ class StackBufferQueryConfigurationEncoder(Module):
         stack_lengths: Tensor,
         buffer_lengths: Tensor,
         padding: Optional[Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
         **kwargs,
     ) -> Tensor:
         # Look-up the whole unpadded buffer and stack sequence
@@ -203,13 +235,8 @@ class StackBufferQueryConfigurationEncoder(Module):
         buffer_keys = self.positional_encoder(buffer_keys)
 
         # Take the first entry as query
-        stack_queries = buffer_keys.index_select(
-            dim=1, index=torch.zeros(1, dtype=torch.int64, device=self.device)
-        ).squeeze(1)
-
-        buffer_queries = stack_keys.index_select(
-            dim=1, index=torch.zeros(1, dtype=torch.int64, device=self.device)
-        ).squeeze(1)
+        stack_queries = self._fix_empty_sequence(stack_keys)
+        buffer_queries = self._fix_empty_sequence(buffer_keys)
 
         # Compute a representation of the stack / buffer as an weighted average based
         # on the attention weights.
@@ -220,6 +247,18 @@ class StackBufferQueryConfigurationEncoder(Module):
         buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
             queries=buffer_queries, keys=buffer_keys, sequence_lengths=buffer_lengths
         )
+
+        if self.reporter:
+            self.reporter.log(
+                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+            )
+            self.reporter.log(
+                "buffer",
+                buffers,
+                buffer_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
 
         return torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 
@@ -233,9 +272,11 @@ class FinishedQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
+        reporter: Optional[AttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.reporter = reporter
 
         self.model_size = self.input_size = model_size
 
@@ -298,6 +339,8 @@ class FinishedQueryConfigurationEncoder(Module):
         finished_tokens: Tensor,
         finished_tokens_lengths: Tensor,
         padding: Optional[Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
         **kwargs,
     ) -> Tensor:
         # Look-up the whole unpadded buffer and stack sequence
@@ -332,6 +375,25 @@ class FinishedQueryConfigurationEncoder(Module):
             queries=tokens_attention, keys=buffer_keys, sequence_lengths=buffer_lengths
         )
 
+        if self.reporter:
+            self.reporter.log(
+                "finished_tokens",
+                finished_tokens,
+                tokens_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
+            self.reporter.log(
+                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+            )
+            self.reporter.log(
+                "buffer",
+                buffers,
+                buffer_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
+
         return torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 
 
@@ -344,9 +406,11 @@ class SentenceQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
+        reporter: Optional[AttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.reporter = reporter
 
         self.model_size = self.input_size = model_size
 
@@ -421,6 +485,8 @@ class SentenceQueryConfigurationEncoder(Module):
         finished_tokens_lengths: Tensor,
         sentence_lengths: Tensor,
         padding: Optional[Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
         **kwargs,
     ) -> Tensor:
         # Look-up the whole unpadded buffer and stack sequence
@@ -459,6 +525,35 @@ class SentenceQueryConfigurationEncoder(Module):
         buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
             queries=sentence_attention, keys=buffer_keys, sequence_lengths=buffer_lengths
         )
+
+        if self.reporter:
+            sentence_tokens = torch.arange(
+                contextualized_input_batch.size(1), device=self.device
+            ).expand(contextualized_input_batch.size(0), contextualized_input_batch.size(1))
+            self.reporter.log(
+                "finished_tokens",
+                finished_tokens,
+                tokens_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
+            self.reporter.log(
+                "sentence",
+                sentence_tokens,
+                sentence_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
+            self.reporter.log(
+                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+            )
+            self.reporter.log(
+                "buffer",
+                buffers,
+                buffer_attention_energies,
+                sentence_features,
+                sentence_ids,
+            )
 
         return torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 

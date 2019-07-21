@@ -21,7 +21,7 @@ class Evaluator(LoggerMixin):
     model: Module
     treebank: Treebank
     callbacks: List[EvalCallback] = None
-    batch_size: int = 512
+    batch_size: int = 64
     eval_function: FunctionType = CoNLLEvaluationScript().get_las_score_for_sentences
 
     def __post_init__(self) -> None:

@@ -249,6 +249,13 @@ def parse_train_cli_arguments():
     )
 
     attention_group.add_argument(
+        "--attention_reporter_path",
+        type=str,
+        help="Path to a folder where all the attention weights are logged to.",
+        required=False,
+    )
+
+    attention_group.add_argument(
         "--scale_query",
         type=int,
         default=None,

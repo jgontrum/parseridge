@@ -5,7 +5,10 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
-from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
+from parseridge.parser.modules.configuration_encoder import (
+    CONFIGURATION_ENCODERS,
+    AttentionReporter,
+)
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
@@ -38,6 +41,7 @@ class ParseridgeModel(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
+        attention_reporter: Optional[AttentionReporter] = None,
         device: str = "cpu",
     ) -> None:
 
@@ -95,6 +99,7 @@ class ParseridgeModel(Module):
             normalization_function=normalization_function,
             num_stack=self.stack_size,
             num_buffer=self.buffer_size,
+            reporter=attention_reporter,
             device=self.device,
         )
 
@@ -147,6 +152,8 @@ class ParseridgeModel(Module):
         finished_tokens: Optional[torch.Tensor] = None,
         finished_tokens_lengths: Optional[torch.Tensor] = None,
         sentence_lengths: Optional[torch.Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         mlp_input = self.configuration_encoder(
@@ -158,6 +165,8 @@ class ParseridgeModel(Module):
             finished_tokens=finished_tokens,
             finished_tokens_lengths=finished_tokens_lengths,
             sentence_lengths=sentence_lengths,
+            sentence_features=sentence_features,
+            sentence_ids=sentence_ids,
             padding=self._mlp_padding,
         )
 
@@ -178,6 +187,8 @@ class ParseridgeModel(Module):
         contextualized_input_batch: Optional[List[torch.Tensor]] = None,
         finished_tokens: Optional[torch.Tensor] = None,
         finished_tokens_lengths: Optional[torch.Tensor] = None,
+        sentence_features: Optional[torch.Tensor] = None,
+        sentence_ids: Optional[List[str]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if contextualized_input_batch is None:
@@ -202,6 +213,8 @@ class ParseridgeModel(Module):
             sentence_lengths=sentence_lengths,
             finished_tokens=finished_tokens,
             finished_tokens_lengths=finished_tokens_lengths,
+            sentence_features=sentence_features,
+            sentence_ids=sentence_ids,
         )
 
         return transitions_output, relations_output
