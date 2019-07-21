@@ -60,9 +60,5 @@ class AttentionReporter(EvalCallback):
         self._reset()
 
     def on_eval_end(self, **kwargs: Any) -> None:
-        self._save(
-            f"{self.file_path}/attention_weights_eval_epoch_{self._current_epoch}.json.xz"
-        )
         self._reset()
-
         self._current_epoch += 1
