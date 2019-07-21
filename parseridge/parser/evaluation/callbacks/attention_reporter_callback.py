@@ -1,4 +1,5 @@
 import json
+import lzma
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -22,6 +23,12 @@ class AttentionReporter(EvalCallback):
 
     def _reset(self):
         self._current_data = defaultdict(lambda: defaultdict(list))
+
+    def _save(self, file_name):
+        self.logger.info(f"Saving compressed attention weights to '{file_name}'.")
+        with lzma.open(file_name, mode="w") as f:
+            data = json.dumps(self._current_data)
+            f.write(data.encode())
 
     def log(
         self,
@@ -47,23 +54,15 @@ class AttentionReporter(EvalCallback):
             self._current_data[sentence_id][name].append(aligned)
 
     def on_eval_begin(self, **kwargs: Any) -> None:
-        file_name = (
-            f"{self.file_path}/attention_weights_train_epoch_{self._current_epoch}.json"
+        self._save(
+            f"{self.file_path}/attention_weights_train_epoch_{self._current_epoch}.json.xz"
         )
-
-        with open(file_name, mode="w") as f:
-            json.dump(self._current_data, f)
-
         self._reset()
 
     def on_eval_end(self, **kwargs: Any) -> None:
-        file_name = (
-            f"{self.file_path}/attention_weights_eval_epoch_{self._current_epoch}.json"
+        self._save(
+            f"{self.file_path}/attention_weights_eval_epoch_{self._current_epoch}.json.xz"
         )
-
-        with open(file_name, mode="w") as f:
-            json.dump(self._current_data, f)
-
         self._reset()
 
         self._current_epoch += 1
