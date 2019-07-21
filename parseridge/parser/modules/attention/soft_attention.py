@@ -3,7 +3,6 @@ from typing import Tuple, Optional
 import torch
 from torch import Tensor, nn
 
-from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
 from parseridge.parser.modules.attention.similarity_functions import (
     DotSimilarity,
     GeneralSimilarity,
@@ -42,15 +41,12 @@ class Attention(Module):
         value_output_dim: Optional[int] = None,
         similarity="dot",
         normalization="softmax",
-        positional_encoding: bool = True,
         device="cpu",
         **kwargs,
     ):
         super().__init__(device=device)
         self.input_size = key_dim
         self.output_size = key_dim if not key_output_dim else key_output_dim
-
-        self.positional_encoding = positional_encoding
 
         if not value_dim:
             value_dim = key_dim
@@ -82,11 +78,6 @@ class Attention(Module):
         self.similarity_function = self.SCORING_FUNCTIONS[similarity](kwargs)
         self.normalize = self.NORMALIZATION_FUNCTIONS[normalization]
 
-        if self.positional_encoding:
-            self.positional_encoder = PositionalEncoder(
-                model_size=key_dim if not key_output_dim else key_output_dim, max_length=250
-            )
-
     def forward(
         self, queries: Tensor, keys: Tensor, sequence_lengths: Tensor, values: Tensor = None
     ) -> Tuple[Tensor, Tensor, Tensor]:
@@ -110,9 +101,6 @@ class Attention(Module):
         queries = self._transform_query(queries)
         keys = self._transform_keys(keys)
         values = self._transform_values(values)
-
-        if self.positional_encoding:
-            keys = self.positional_encoder(keys)
 
         # Compare keys to queries
         attention_logits = self.similarity_function(queries, keys)

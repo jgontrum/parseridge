@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
-from parseridge.parser.modules.attention.soft_attention import Attention
+from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
@@ -36,6 +36,7 @@ class AttentionModel(Module):
         relation_mlp_activation: nn.Module = nn.Tanh,
         embeddings: ExternalEmbeddings = None,
         self_attention_heads: int = 10,
+        configuration_encoder: str = "static",
         scale_query: int = None,
         scale_key: int = None,
         scale_value: int = None,
@@ -89,31 +90,19 @@ class AttentionModel(Module):
 
         """Computes attention over the output of the input encoder given the state of the
         action encoder. """
-        self.stack_attention = Attention(
-            query_dim=self.input_encoder.output_size,
-            key_dim=self.input_encoder.output_size,
-            similarity=scoring_function,
-            normalization=normalization_function,
-            query_output_dim=scale_query,
-            key_output_dim=scale_key,
-            value_output_dim=scale_value,
-            device=device,
+        self.configuration_encoder = CONFIGURATION_ENCODERS[configuration_encoder](
+            model_size=self.input_encoder.output_size,
+            scale_query=scale_query,
+            scale_key=scale_key,
+            scale_value=scale_value,
+            scoring_function=scoring_function,
+            normalization_function=normalization_function,
+            num_stack=self.stack_size,
+            num_buffer=self.buffer_size,
+            device=self.device,
         )
 
-        self.buffer_attention = Attention(
-            query_dim=self.input_encoder.output_size,
-            key_dim=self.input_encoder.output_size,
-            similarity=scoring_function,
-            normalization=normalization_function,
-            query_output_dim=scale_query,
-            key_output_dim=scale_key,
-            value_output_dim=scale_value,
-            device=device,
-        )
-
-        self.mlp_in_size = (
-            self.buffer_attention.output_size + self.stack_attention.output_size
-        )
+        self.mlp_in_size = self.configuration_encoder.output_size
 
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
@@ -161,36 +150,14 @@ class AttentionModel(Module):
         buffer_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        # Get the first token from the stack and the buffer (padded of needed)
-        stack_queries = self._get_padded_tensors_for_indices(
-            indices=buffers,
-            lengths=buffer_lengths,
+        mlp_input = self.configuration_encoder(
             contextualized_input_batch=contextualized_input_batch,
-            max_length=1,
+            stacks=stacks,
+            buffers=buffers,
+            stack_lengths=stack_lengths,
+            buffer_lengths=buffer_lengths,
+            padding=self._mlp_padding,
         )
-
-        buffer_queries = self._get_padded_tensors_for_indices(
-            indices=stacks,
-            lengths=stack_lengths,
-            contextualized_input_batch=contextualized_input_batch,
-            max_length=1,
-        )
-
-        # Look-up the whole unpadded buffer and stack sequence
-        stack_keys = lookup_tensors_for_indices(stacks, contextualized_input_batch)
-        buffer_keys = lookup_tensors_for_indices(buffers, contextualized_input_batch)
-
-        # Compute a representation of the stack / buffer as an weighted average based
-        # on the attention weights.
-        stack_batch_attention, _, stack_attention_energies = self.stack_attention(
-            queries=stack_queries, keys=stack_keys, sequence_lengths=stack_lengths
-        )
-
-        buffer_batch_attention, _, buffer_attention_energies = self.buffer_attention(
-            queries=buffer_queries, keys=buffer_keys, sequence_lengths=buffer_lengths
-        )
-
-        mlp_input = torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
 
         # Use output and feed it into MLP
         transitions_output = self.transition_mlp(mlp_input)

@@ -107,6 +107,46 @@ def lookup_tensors_for_indices(indices_batch, sequence_batch):
     )
 
 
+def get_padded_tensors_for_indices(
+    indices: torch.Tensor,
+    lengths: torch.Tensor,
+    contextualized_input_batch: torch.Tensor,
+    max_length: int,
+    padding: torch.Tensor,
+    device: str = "cpu",
+):
+    indices = pad_tensor_list(indices, length=max_length)
+    # Lookup the contextualized tokens from the indices
+    batch = lookup_tensors_for_indices(indices, contextualized_input_batch)
+
+    batch_size = batch.size(0)
+    sequence_size = max(batch.size(1), max_length)
+    token_size = batch.size(2)
+
+    # Expand the padding vector over the size of the batch
+    padding_batch = padding.expand(batch_size, sequence_size, token_size)
+
+    if max(lengths) == 0:
+        # If the batch is completely empty, we can just return the whole padding batch
+        batch_padded = padding_batch
+    else:
+        # Build a mask and expand it over the size of the batch
+        mask = torch.arange(sequence_size, device=device)[None, :] < lengths[:, None]
+        mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
+
+        batch_padded = torch.where(
+            mask,  # Condition
+            batch,  # If condition is 1
+            padding_batch,  # If condition is 0
+        )
+
+        # Cut the tensor at the specified length
+        batch_padded = torch.split(batch_padded, max_length, dim=1)[0]
+
+    # Flatten the output by concatenating the token embeddings
+    return batch_padded.contiguous().view(batch_padded.size(0), -1)
+
+
 def get_mask(batch, lengths, device="cpu"):
     max_len = batch.size(1)
     return torch.arange(max_len, device=device)[None, :] < lengths[:, None]
