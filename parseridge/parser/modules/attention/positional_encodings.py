@@ -1,11 +1,14 @@
 import numpy as np
 import torch
+from torch import nn
 
 from parseridge.parser.modules.data_parallel import Module
 
 
 class PositionalEncoder(Module):
-    def __init__(self, model_size=128, max_length=200, **kwargs):
+    def __init__(
+        self, model_size: int = 128, max_length: int = 200, dropout: float = 0.1, **kwargs
+    ):
         super().__init__(**kwargs)
         self.model_size = self.input_size = self.output_size = model_size
 
@@ -22,6 +25,8 @@ class PositionalEncoder(Module):
         self.pe = torch.from_numpy(position_enc).float().to(self.device)
         self.pe = self.pe.requires_grad_(False)
 
+        self.dropout = nn.Dropout(p=dropout)
+
     def forward(self, x):
         pe = self.pe[: x.size(1)]
-        return x + pe
+        return self.dropout(x + pe)
