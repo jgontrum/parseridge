@@ -10,14 +10,10 @@ from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
-from parseridge.parser.modules.utils import (
-    initialize_xavier_dynet_,
-    lookup_tensors_for_indices,
-    pad_tensor_list,
-)
+from parseridge.parser.modules.utils import initialize_xavier_dynet_
 
 
-class AttentionModel(Module):
+class ParseridgeModel(Module):
     def __init__(
         self,
         relations: Relations,
@@ -148,6 +144,9 @@ class AttentionModel(Module):
         stack_lengths: torch.Tensor,
         buffers: torch.Tensor,
         buffer_lengths: torch.Tensor,
+        finished_tokens: Optional[torch.Tensor] = None,
+        finished_tokens_lengths: Optional[torch.Tensor] = None,
+        sentence_lengths: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         mlp_input = self.configuration_encoder(
@@ -156,6 +155,9 @@ class AttentionModel(Module):
             buffers=buffers,
             stack_lengths=stack_lengths,
             buffer_lengths=buffer_lengths,
+            finished_tokens=finished_tokens,
+            finished_tokens_lengths=finished_tokens_lengths,
+            sentence_lengths=sentence_lengths,
             padding=self._mlp_padding,
         )
 
@@ -171,18 +173,20 @@ class AttentionModel(Module):
         stack_lengths: torch.Tensor,
         buffers: torch.Tensor,
         buffer_lengths: torch.Tensor,
-        token_sequences: Optional[torch.Tensor] = None,
+        sentence_tokens: Optional[torch.Tensor] = None,
         sentence_lengths: Optional[torch.Tensor] = None,
         contextualized_input_batch: Optional[List[torch.Tensor]] = None,
+        finished_tokens: Optional[torch.Tensor] = None,
+        finished_tokens_lengths: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if contextualized_input_batch is None:
-            assert token_sequences is not None
+            assert sentence_tokens is not None
             assert sentence_lengths is not None
             # Pass all sentences through the input encoder to create contextualized
             # token tensors.
             contextualized_input_batch = self.get_contextualized_input(
-                token_sequences, sentence_lengths
+                sentence_tokens, sentence_lengths
             )
         else:
             # If we already have the output of the input encoder as lists,
@@ -195,46 +199,9 @@ class AttentionModel(Module):
             stack_lengths=stack_lengths,
             buffers=buffers,
             buffer_lengths=buffer_lengths,
+            sentence_lengths=sentence_lengths,
+            finished_tokens=finished_tokens,
+            finished_tokens_lengths=finished_tokens_lengths,
         )
 
         return transitions_output, relations_output
-
-    def _get_padded_tensors_for_indices(
-        self,
-        indices: torch.Tensor,
-        lengths: torch.Tensor,
-        contextualized_input_batch: torch.Tensor,
-        max_length: int,
-    ):
-        indices = pad_tensor_list(indices, length=max_length)
-        # Lookup the contextualized tokens from the indices
-        batch = lookup_tensors_for_indices(indices, contextualized_input_batch)
-
-        batch_size = batch.size(0)
-        sequence_size = max(batch.size(1), max_length)
-        token_size = batch.size(2)
-
-        # Expand the padding vector over the size of the batch
-        padding_batch = self._mlp_padding.expand(batch_size, sequence_size, token_size)
-
-        if max(lengths) == 0:
-            # If the batch is completely empty, we can just return the whole padding batch
-            batch_padded = padding_batch
-        else:
-            # Build a mask and expand it over the size of the batch
-            mask = (
-                torch.arange(sequence_size, device=self.device)[None, :] < lengths[:, None]
-            )
-            mask = mask.unsqueeze(2).expand(batch_size, sequence_size, token_size)
-
-            batch_padded = torch.where(
-                mask,  # Condition
-                batch,  # If condition is 1
-                padding_batch,  # If condition is 0
-            )
-
-            # Cut the tensor at the specified length
-            batch_padded = torch.split(batch_padded, max_length, dim=1)[0]
-
-        # Flatten the output by concatenating the token embeddings
-        return batch_padded.contiguous().view(batch_padded.size(0), -1)

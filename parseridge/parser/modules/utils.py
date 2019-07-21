@@ -88,7 +88,7 @@ def pad_tensor(tensor, length, padding=0):
 
 def pad_tensor_list(tensors, padding=0, length=None):
     max_length = max([len(tensor) for tensor in tensors])
-    if max_length is not None:
+    if length is not None:
         max_length = max(max_length, length)
 
     padded_tensors = [
@@ -159,12 +159,18 @@ def mask_(batch, lengths, masked_value=float("-inf"), device="cpu"):
 
 
 def to_int_tensor(data: Any, device="cpu"):
+    if isinstance(data, torch.Tensor):
+        return data.type(torch.int64).to(device=device)
     return torch.tensor(data, dtype=torch.int64, device=device)
 
 
 def to_byte_tensor(data: Any, device="cpu"):
+    if isinstance(data, torch.Tensor):
+        return data.type(torch.uint8).to(device=device)
     return torch.tensor(data, dtype=torch.uint8, device=device)
 
 
 def to_float_tensor(data: Any, device="cpu"):
+    if isinstance(data, torch.Tensor):
+        return data.type(torch.float32).to(device=device)
     return torch.tensor(data, dtype=torch.float32, device=device)

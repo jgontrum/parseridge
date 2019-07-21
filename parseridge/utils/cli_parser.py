@@ -4,6 +4,7 @@ from distutils.util import strtobool
 
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.modules.attention.soft_attention import Attention
+from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
 
 
 def parse_train_cli_arguments():
@@ -238,6 +239,15 @@ def parse_train_cli_arguments():
     )
 
     attention_group = parser.add_argument_group("Attention")
+    attention_group.add_argument(
+        "--configuration_encoder",
+        type=str,
+        default="static",
+        help="The method how to represent the current configuration as input to the MLP.",
+        required=False,
+        choices=list(CONFIGURATION_ENCODERS.keys()),
+    )
+
     attention_group.add_argument(
         "--scale_query",
         type=int,

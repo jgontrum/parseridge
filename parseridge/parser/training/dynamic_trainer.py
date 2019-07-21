@@ -6,7 +6,11 @@ from torch.nn.modules.loss import _Loss
 from parseridge.corpus.corpus import CorpusIterator, Corpus
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.modules.data_parallel import Module
-from parseridge.parser.modules.utils import pad_list_of_lists, to_int_tensor
+from parseridge.parser.modules.utils import (
+    pad_list_of_lists,
+    to_int_tensor,
+    pad_tensor_list,
+)
 from parseridge.parser.training.base_trainer import Trainer
 from parseridge.parser.training.callbacks.base_callback import StopEpoch, StopTraining
 from parseridge.utils.helpers import T
@@ -261,9 +265,14 @@ class DynamicTrainer(Trainer):
 
         padded_stacks = pad_list_of_lists([list(reversed(c.stack)) for c in configurations])
         padded_buffers = pad_list_of_lists([c.buffer for c in configurations])
+        padded_finished_tokens = pad_tensor_list(
+            [c.reversed_finished_tokens_tensor for c in configurations]
+        )
 
         stack_len = [len(c.stack) for c in configurations]
         buffer_len = [len(c.buffer) for c in configurations]
+        finished_tokens_len = [len(c.finished_tokens) for c in configurations]
+        sentence_len = [len(c.sentence) for c in configurations]
 
         transition_logits, relation_logits = model.compute_mlp_output(
             contextualized_input_batch=torch.stack(contextualized_inputs),
@@ -271,6 +280,9 @@ class DynamicTrainer(Trainer):
             stack_lengths=to_int_tensor(stack_len, device=model.device),
             buffers=to_int_tensor(padded_buffers, device=model.device),
             buffer_lengths=to_int_tensor(buffer_len, device=model.device),
+            finished_tokens=to_int_tensor(padded_finished_tokens, device=model.device),
+            finished_tokens_lengths=to_int_tensor(finished_tokens_len, device=model.device),
+            sentence_lengths=to_int_tensor(sentence_len, device=model.device),
         )
 
         # Isolate the columns for the transitions
