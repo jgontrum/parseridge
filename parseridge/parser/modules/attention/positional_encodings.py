@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import torch
 
@@ -23,5 +25,8 @@ class PositionalEncoder(Module):
         self.pe = self.pe.requires_grad_(False)
 
     def forward(self, x):
+        # make embeddings relatively larger
+        x *= math.sqrt(self.model_size)
+
         pe = self.pe[: x.size(1)]
         return x + pe
