@@ -34,28 +34,37 @@ class AttentionReporter(EvalCallback):
         self,
         name: str,
         sequences: Tensor,
+        sequence_lengths: Tensor,
         attention_energies: Tensor,
         sentence_features: Tensor,
         sentence_ids: List[str],
     ):
         sentences_token_ids = sentence_features[:, 0, :]
 
-        for sequence, energies, sentence_token_ids, sentence_id in zip(
-            sequences, attention_energies, sentences_token_ids, sentence_ids
+        for sequence, length, energies, sentence_token_ids, sentence_id in zip(
+            sequences,
+            sequence_lengths,
+            attention_energies,
+            sentences_token_ids,
+            sentence_ids,
         ):
             tokens = sentence_token_ids.index_select(dim=0, index=sequence).cpu().tolist()
             tokens = [self.vocabulary.get_item(token_id) for token_id in tokens]
             energies = energies.squeeze(1).cpu().tolist()
 
+            length = length.item()
+
             aligned = [
-                (token, energy) for token, energy in zip(tokens, energies) if energy > 0.0
+                (token, energy)
+                for i, (token, energy) in enumerate(zip(tokens, energies))
+                if i < length
             ]
 
             self._current_data[sentence_id][name].append(aligned)
 
     def on_eval_begin(self, **kwargs: Any) -> None:
         self._save(
-            f"{self.file_path}/attention_weights_train_epoch_{self._current_epoch}.json.xz"
+            f"{self.file_path}/attention_weights_train_epoch_{self._current_epoch}.json.lzma"
         )
         self._reset()
 

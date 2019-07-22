@@ -132,12 +132,18 @@ class UniversalConfigurationEncoder(Module):
             self.reporter.log(
                 "buffer",
                 buffers,
+                buffer_lengths,
                 buffer_attention_energies,
                 sentence_features,
                 sentence_ids,
             )
             self.reporter.log(
-                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+                "stack",
+                stacks,
+                stack_lengths,
+                stack_attention_energies,
+                sentence_features,
+                sentence_ids,
             )
 
         return torch.cat((stack_batch_attention, buffer_batch_attention), dim=1)
@@ -243,11 +249,17 @@ class StackBufferQueryConfigurationEncoder(Module):
 
         if self.reporter:
             self.reporter.log(
-                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+                "stack",
+                stacks,
+                stack_lengths,
+                stack_attention_energies,
+                sentence_features,
+                sentence_ids,
             )
             self.reporter.log(
                 "buffer",
                 buffers,
+                buffer_lengths,
                 buffer_attention_energies,
                 sentence_features,
                 sentence_ids,
@@ -372,16 +384,23 @@ class FinishedQueryConfigurationEncoder(Module):
             self.reporter.log(
                 "finished_tokens",
                 finished_tokens,
+                finished_tokens_lengths,
                 tokens_attention_energies,
                 sentence_features,
                 sentence_ids,
             )
             self.reporter.log(
-                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+                "stack",
+                stacks,
+                stack_lengths,
+                stack_attention_energies,
+                sentence_features,
+                sentence_ids,
             )
             self.reporter.log(
                 "buffer",
                 buffers,
+                buffer_lengths,
                 buffer_attention_energies,
                 sentence_features,
                 sentence_ids,
@@ -526,6 +545,7 @@ class SentenceQueryConfigurationEncoder(Module):
             self.reporter.log(
                 "finished_tokens",
                 finished_tokens,
+                finished_tokens_lengths,
                 tokens_attention_energies,
                 sentence_features,
                 sentence_ids,
@@ -533,16 +553,23 @@ class SentenceQueryConfigurationEncoder(Module):
             self.reporter.log(
                 "sentence",
                 sentence_tokens,
+                sentence_lengths,
                 sentence_attention_energies,
                 sentence_features,
                 sentence_ids,
             )
             self.reporter.log(
-                "stack", stacks, stack_attention_energies, sentence_features, sentence_ids
+                "stack",
+                stacks,
+                stack_lengths,
+                stack_attention_energies,
+                sentence_features,
+                sentence_ids,
             )
             self.reporter.log(
                 "buffer",
                 buffers,
+                buffer_lengths,
                 buffer_attention_energies,
                 sentence_features,
                 sentence_ids,

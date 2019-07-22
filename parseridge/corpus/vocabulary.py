@@ -7,7 +7,7 @@ class Vocabulary(Signature):
     number_regex = re.compile("[0-9]+|[0-9]+\\.[0-9]+|[0-9]+[0-9,]+")
 
     def __init__(self, entries=None, embeddings_vocab=None):
-        default_entries = ["<<<OOV>>>", "<<<PADDING>>>", "NUM"]
+        default_entries = ["<<<OOV>>>", "<<<PADDING>>>", "NUM", "*root*"]
         self.embeddings_vocab = None  # Init with None to be able to add default_entries
 
         if entries is not None:
