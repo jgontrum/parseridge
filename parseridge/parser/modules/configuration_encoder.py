@@ -73,7 +73,7 @@ class UniversalConfigurationEncoder(Module):
         self.model_size = self.input_size = model_size
 
         self.positional_encoder = PositionalEmbeddings(
-            model_size=self.model_size, embedding_size=64, max_length=350
+            model_size=self.model_size, embedding_size=128, max_length=350
         )
 
         self.stack_attention = UniversalAttention(
@@ -167,7 +167,7 @@ class StackBufferQueryConfigurationEncoder(Module):
         self.model_size = self.input_size = model_size
 
         self.positional_encoder = PositionalEmbeddings(
-            model_size=self.model_size, embedding_size=64, max_length=350
+            model_size=self.model_size, embedding_size=128, max_length=350
         )
 
         self.stack_attention = Attention(
@@ -286,7 +286,7 @@ class FinishedQueryConfigurationEncoder(Module):
         self.model_size = self.input_size = model_size
 
         self.positional_encoder = PositionalEmbeddings(
-            model_size=self.model_size, embedding_size=64, max_length=350
+            model_size=self.model_size, embedding_size=128, max_length=350
         )
 
         self.finished_tokens_attention = UniversalAttention(
@@ -427,7 +427,7 @@ class SentenceQueryConfigurationEncoder(Module):
         self.model_size = self.input_size = model_size
 
         self.positional_encoder = PositionalEmbeddings(
-            model_size=self.model_size, embedding_size=64, max_length=350
+            model_size=self.model_size, embedding_size=128, max_length=350
         )
 
         self.finished_tokens_attention = UniversalAttention(
