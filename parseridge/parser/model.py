@@ -93,7 +93,7 @@ class ParseridgeModel(Module):
             input_size=self.input_encoder.output_size,
             hidden_sizes=[512],
             output_size=self.input_encoder.output_size,
-            activation=nn.ReLU,
+            activation=nn.Tanh,
         )
 
         self.lstm_output_transform_norm = AddAndNormLayer(
