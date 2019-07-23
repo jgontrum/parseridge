@@ -5,7 +5,7 @@ from copy import copy
 
 import yaml
 
-IGNORE_KEYS = ["repository", "code_path", "commit", "python_bin", "experiment_group"]
+IGNORE_KEYS = ["repository", "code_path", "python_bin", "experiment_group"]
 
 
 def get_args():

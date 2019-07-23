@@ -4,7 +4,7 @@ import logging
 from torch import nn
 from torch.optim import Adam
 
-from parseridge import formatter, logger
+from parseridge import formatter, logger, git_commit
 from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
@@ -45,6 +45,12 @@ if __name__ == "__main__":
         logger.addHandler(file_handler)
 
     logger.info(f"Hyper Parameters: \n{json.dumps(vars(args), indent=2, sort_keys=True)}")
+    logger.info(f"Running at git commit {git_commit}.")
+
+    if args.commit and git_commit != args.commit:
+        logger.warning(
+            f"Commit hash mismatch! Expected {args.commit}, but code is at {git_commit}!"
+        )
 
     try:
         # Set the seed for deterministic outcomes

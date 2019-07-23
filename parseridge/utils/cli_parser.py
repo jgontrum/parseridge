@@ -375,4 +375,12 @@ def parse_train_cli_arguments():
         required=False,
     )
 
+    parser.add_argument(
+        "--commit",
+        type=str,
+        default=None,
+        help="Optional git commit this experiment is supposed to run at.",
+        required=False,
+    )
+
     return parser.parse_args()
