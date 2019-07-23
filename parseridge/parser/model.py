@@ -92,7 +92,7 @@ class ParseridgeModel(Module):
             input_size=self.input_encoder.output_size,
             hidden_sizes=[512],
             output_size=self.input_encoder.output_size,
-            activation=nn.ReLU,
+            activation=nn.Tanh,
         )
 
         """Computes attention over the output of the input encoder given the state of the
