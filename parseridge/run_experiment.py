@@ -84,7 +84,8 @@ if __name__ == "__main__":
 
     # Run the experiment
     subprocess.run(
-        f"cd {experiment['code_path']} &&"
-        f"{experiment['python_bin']} parseridge/train.py {arguments}",
+        f"PYTHONPATH=$PYTHONPATH:{experiment['code_path']} {experiment['python_bin']} "
+        f"parseridge/train.py {arguments}",
+        cwd=experiment["code_path"],
         shell=True,
     )
