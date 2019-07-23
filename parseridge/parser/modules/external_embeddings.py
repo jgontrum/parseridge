@@ -41,16 +41,17 @@ class ExternalEmbeddings(LoggerMixin):
             np.random.rand(self.dim),  # OOV
             np.zeros(self.dim, dtype=float),  # PAD
             np.random.rand(self.dim),  # NUM
+            np.random.rand(self.dim),  # *root*
         ]
 
         for token, id_ in sorted(vocabulary._item_to_id.items(), key=lambda x: x[1]):
-            if id_ <= 2:
-                # Ignore <<OOV>> and <<PADDING>> vectors
+            if id_ <= 3:
+                # Ignore reserved vectors
                 continue
 
             embeddings.append(self.token_to_embedding[token])
 
-        self.freeze_indices = torch.arange(start=2, end=len(embeddings), device=device)
+        self.freeze_indices = torch.arange(start=3, end=len(embeddings), device=device)
 
         np_embeddings = np.array(embeddings)
 
