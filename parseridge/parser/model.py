@@ -110,7 +110,7 @@ class ParseridgeModel(Module):
             input_size=self.mlp_in_size,
             hidden_sizes=[512],
             output_size=self.mlp_in_size,
-            activation=nn.ReLU,
+            activation=nn.Tanh,
         )
 
         self.mlp_input_transform_norm = AddAndNormLayer(model_size=self.mlp_in_size)
