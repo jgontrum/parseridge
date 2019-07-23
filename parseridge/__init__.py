@@ -12,7 +12,10 @@ logger.setLevel(logging.DEBUG)
 
 try:
     process = subprocess.Popen(
-        ["git", "rev-parse", "HEAD"], shell=False, stdout=subprocess.PIPE
+        ["git", "rev-parse", "HEAD"],
+        shell=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
     git_commit = process.communicate()[0].strip().decode()
 except ValueError or IndexError:
