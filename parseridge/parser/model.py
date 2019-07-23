@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.configuration_encoder import (
     CONFIGURATION_ENCODERS,
     AttentionReporter,
@@ -92,7 +93,11 @@ class ParseridgeModel(Module):
             input_size=self.input_encoder.output_size,
             hidden_sizes=[512],
             output_size=self.input_encoder.output_size,
-            activation=nn.Tanh,
+            activation=nn.ReLU,
+        )
+
+        self.lstm_output_transform_norm = AddAndNormLayer(
+            model_size=self.input_encoder.output_size
         )
 
         """Computes attention over the output of the input encoder given the state of the
@@ -163,7 +168,10 @@ class ParseridgeModel(Module):
         sentence_ids: Optional[List[str]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        contextualized_input_batch = self.lstm_output_transform(contextualized_input_batch)
+        contextualized_input_batch = self.lstm_output_transform_norm(
+            input=contextualized_input_batch,
+            output=self.lstm_output_transform(contextualized_input_batch),
+        )
 
         mlp_input = self.configuration_encoder(
             contextualized_input_batch=contextualized_input_batch,
