@@ -77,7 +77,7 @@ if __name__ == "__main__":
     arguments = []
     for option, value in training_args.items():
         if isinstance(value, list):
-            value = ",".join([str(v) for v in value])
+            value = " ".join([str(v) for v in value])
         arguments.append(f"--{option}={value}")
 
     arguments = " ".join(arguments)
