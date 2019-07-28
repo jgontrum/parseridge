@@ -1,7 +1,7 @@
 experiment:
   attention_reporter_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/attention_energies/
   code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
-  commit: ee43072d534c26eaddf25c62bd1c317252e1a5a3
+  commit: 4ffc17bcc9be7535c357b2c29bde8b0777efa9fe
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
   experiment_group: exp2_no_inc_enc_512
   experiment_name: 257_exp2_no_inc_enc_512
