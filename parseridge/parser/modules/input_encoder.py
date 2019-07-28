@@ -2,6 +2,7 @@ import torch.nn as nn
 from torch.nn import MultiheadAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
@@ -69,6 +70,16 @@ class InputEncoder(Module):
                 embed_dim=self.input_size, num_heads=heads
             )
 
+            self.multihead_attention_norm = AddAndNormLayer(model_size=self.input_size)
+
+            self.multihead_linear_layer = nn.Sequential(
+                nn.Linear(in_features=self.input_size, out_features=512),
+                nn.ReLU(),
+                nn.Linear(in_features=512, out_features=self.input_size),
+            )
+
+            self.multihead_linear_layer_norm = AddAndNormLayer(model_size=self.input_size)
+
             self.output_size = self.input_size
 
     def load_external_embeddings(self, embeddings: ExternalEmbeddings):
@@ -109,24 +120,25 @@ class InputEncoder(Module):
             tokens_embedded = self.positional_encoder(tokens_embedded)
 
             # [Batch, Sequence, Embedding] -> [Sequence, Batch, Embedding]
-            tokens_embedded = tokens_embedded.transpose(0, 1)
+            input_sequences = tokens_embedded.transpose(0, 1)
 
-            # Compute the multihead attention
+            # Compute the multi head attention
             attention_output, attention_weights = self.multihead_attention(
-                query=tokens_embedded,
-                key=tokens_embedded,
-                value=tokens_embedded,
+                query=input_sequences,
+                key=input_sequences,
+                value=input_sequences,
                 key_padding_mask=mask,
             )
 
             # [Sequence, Batch, Embedding] -> [Batch, Sequence, Embedding]
             attention_output = attention_output.transpose(0, 1)
 
-            # Mask out padding tokens
-            attention_output[mask] = float("-inf")
+            attention_output = self.multihead_attention_norm(
+                input=tokens_embedded, output=attention_output
+            )
+
+            attention_output = self.multihead_linear_layer_norm(
+                input=attention_output, output=self.multihead_linear_layer(attention_output)
+            )
 
             return attention_output, attention_weights
-
-        # TODO residual connections
-        # TODO dropout
-        # TODO layernorm
