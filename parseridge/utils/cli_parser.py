@@ -5,6 +5,7 @@ from distutils.util import strtobool
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.modules.attention.soft_attention import Attention
 from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
+from parseridge.parser.modules.input_encoder import InputEncoder
 
 
 def parse_train_cli_arguments():
@@ -87,7 +88,7 @@ def parse_train_cli_arguments():
         default="lstm",
         help="The type of input encoder to use.",
         required=False,
-        choices=["lstm", "transformer"],
+        choices=InputEncoder.INPUT_ENCODER_MODES,
     )
 
     nn_group.add_argument(

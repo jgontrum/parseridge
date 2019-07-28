@@ -10,6 +10,8 @@ from parseridge.parser.modules.utils import get_mask
 
 
 class InputEncoder(Module):
+    INPUT_ENCODER_MODES = ["lstm", "transformer", "none"]
+
     def __init__(
         self,
         token_vocabulary,
@@ -84,6 +86,9 @@ class InputEncoder(Module):
             )
 
             self.embedding_transform_norm = AddAndNormLayer(model_size=self.output_size)
+
+        else:
+            raise ValueError(f"'{self.mode}' not in {self.INPUT_ENCODER_MODES}.")
 
     def load_external_embeddings(self, embeddings: ExternalEmbeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
