@@ -75,7 +75,7 @@ class InputEncoder(Module):
             self.output_size = self.input_size
 
         elif self.mode == "none":
-            self.output_size = 256
+            self.output_size = 128
 
             self.embedding_transform_upscale = nn.Sequential(
                 nn.Linear(token_embedding_size, self.output_size)
