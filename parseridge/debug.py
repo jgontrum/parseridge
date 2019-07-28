@@ -28,6 +28,7 @@ model = ParseridgeModel(
     relations=treebank.relations,
     vocabulary=treebank.vocabulary,
     configuration_encoder="universal_attention",
+    input_encoder_type="none",
     # attention_reporter=attention_reporter,
     # scale_key=125,
     # scale_value=125,
