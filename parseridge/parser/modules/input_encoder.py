@@ -71,6 +71,9 @@ class InputEncoder(Module):
 
             self.output_size = self.input_size
 
+        elif self.mode == "none":
+            self.output_size = token_embedding_size
+
     def load_external_embeddings(self, embeddings: ExternalEmbeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
         self.token_embeddings.weight = embeddings.get_weight_matrix(
@@ -126,6 +129,9 @@ class InputEncoder(Module):
             attention_output[mask] = float("-inf")
 
             return attention_output, attention_weights
+
+        elif self.mode == "none":
+            return tokens_embedded, None
 
         # TODO residual connections
         # TODO dropout
