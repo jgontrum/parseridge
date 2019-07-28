@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import torch
+from torch import nn
 
 from parseridge.parser.modules.data_parallel import Module
 
@@ -24,9 +25,15 @@ class PositionalEncoder(Module):
         self.pe = torch.from_numpy(position_enc).float().to(self.device)
         self.pe = self.pe.requires_grad_(False)
 
+        self.norm = nn.LayerNorm(self.model_size)
+        self.dropout = nn.Dropout(p=0.1)
+
     def forward(self, x):
+        if x.size(1) == 0:
+            return x
+
         # make embeddings relatively larger
         x *= math.sqrt(self.model_size)
 
         pe = self.pe[: x.size(1)]
-        return x + pe
+        return self.norm(self.dropout(x + pe))
