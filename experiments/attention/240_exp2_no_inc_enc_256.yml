@@ -32,7 +32,7 @@ model:
     embeddings_vendor: fasttext
     freeze_embeddings: true
   input_encoder:
-    input_encoder_type: lstm
+    input_encoder_type: none
     lstm_dropout: 0.33
     lstm_hidden_size: 125
     lstm_layers: 2
