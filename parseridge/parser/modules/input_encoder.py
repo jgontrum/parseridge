@@ -2,7 +2,6 @@ import torch.nn as nn
 from torch.nn import MultiheadAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
@@ -75,17 +74,7 @@ class InputEncoder(Module):
             self.output_size = self.input_size
 
         elif self.mode == "none":
-            self.output_size = 128
-
-            self.embedding_transform_upscale = nn.Sequential(
-                nn.Linear(token_embedding_size, self.output_size)
-            )
-
-            self.embedding_transform = nn.Sequential(
-                nn.Linear(self.output_size, self.output_size), nn.ReLU()
-            )
-
-            self.embedding_transform_norm = AddAndNormLayer(model_size=self.output_size)
+            self.output_size = token_embedding_size
 
         else:
             raise ValueError(f"'{self.mode}' not in {self.INPUT_ENCODER_MODES}.")
@@ -147,13 +136,7 @@ class InputEncoder(Module):
             return attention_output, attention_weights
 
         elif self.mode == "none":
-            upscaled = self.embedding_transform_upscale(tokens_embedded)
-
-            output = self.embedding_transform_norm(
-                input=upscaled, output=self.embedding_transform(upscaled)
-            )
-
-            return output, None
+            return tokens_embedded, None
 
         # TODO residual connections
         # TODO dropout
