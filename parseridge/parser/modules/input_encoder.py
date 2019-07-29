@@ -62,7 +62,7 @@ class InputEncoder(Module):
             self.output_size = hidden_size if self.sum_directions else 2 * hidden_size
         elif self.mode == "transformer":
             self.positional_encoder = PositionalEncoder(
-                model_size=self.input_size, max_length=100
+                model_size=self.input_size, max_length=1024
             )
 
             self.multihead_attention = MultiheadAttention(
