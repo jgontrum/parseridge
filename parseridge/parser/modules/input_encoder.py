@@ -109,13 +109,13 @@ class InputEncoder(Module):
             tokens_embedded = self.positional_encoder(tokens_embedded)
 
             # [Batch, Sequence, Embedding] -> [Sequence, Batch, Embedding]
-            input_sequences = tokens_embedded.transpose(0, 1)
+            tokens_embedded = tokens_embedded.transpose(0, 1)
 
-            # Compute the multi head attention
+            # Compute the multihead attention
             attention_output, attention_weights = self.multihead_attention(
-                query=input_sequences,
-                key=input_sequences,
-                value=input_sequences,
+                query=tokens_embedded,
+                key=tokens_embedded,
+                value=tokens_embedded,
                 key_padding_mask=mask,
             )
 
