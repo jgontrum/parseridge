@@ -5,15 +5,12 @@ from parseridge.parser.modules.data_parallel import Module
 
 
 class PositionalEmbeddings(Module):
-    def __init__(
-        self, model_size: int, embedding_size: int = 128, max_length: int = 80, **kwargs
-    ):
+    def __init__(self, model_size: int, max_length: int = 1024, **kwargs):
         super().__init__(**kwargs)
 
-        self.input_size = model_size
-        self.output_size = model_size + embedding_size
+        self.input_size = self.output_size = model_size
 
-        self.embedding_size = embedding_size
+        self.embedding_size = model_size
         self.max_length = max_length
         self.padding_idx = 0
 
@@ -35,6 +32,4 @@ class PositionalEmbeddings(Module):
 
         embeddings = self.emb(padded_indices_batch)
 
-        concatenated = torch.cat((x, embeddings), dim=2)
-
-        return concatenated
+        return x + embeddings
