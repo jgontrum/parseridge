@@ -35,6 +35,7 @@ class ParseridgeModel(Module):
         relation_mlp_activation: nn.Module = nn.Tanh,
         embeddings: ExternalEmbeddings = None,
         self_attention_heads: int = 10,
+        self_attention_layers: int = 2,
         configuration_encoder: str = "static",
         scale_query: int = None,
         scale_key: int = None,
@@ -84,7 +85,8 @@ class ParseridgeModel(Module):
             sum_directions=False,
             reduce_dimensionality=False,
             mode=self.input_encoder_type,
-            heads=self_attention_heads,
+            self_attention_heads=self_attention_heads,
+            self_attention_layers=self_attention_layers,
             device=self.device,
         )
 

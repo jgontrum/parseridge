@@ -113,6 +113,7 @@ if __name__ == "__main__":
             transition_mlp_activation=ACTIVATION_FUNCTIONS[args.transition_mlp_activation],
             relation_mlp_activation=ACTIVATION_FUNCTIONS[args.relation_mlp_activation],
             self_attention_heads=args.self_attention_heads,
+            self_attention_layers=args.self_attention_layers,
             configuration_encoder=args.configuration_encoder,
             scale_query=args.scale_query,
             scale_key=args.scale_key,

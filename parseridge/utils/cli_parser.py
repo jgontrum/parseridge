@@ -307,6 +307,14 @@ def parse_train_cli_arguments():
         required=False,
     )
 
+    attention_group.add_argument(
+        "--self_attention_layers",
+        type=int,
+        default=2,
+        help="Stacked self-attention layers.",
+        required=False,
+    )
+
     misc_group = parser.add_argument_group("Misc.")
     misc_group.add_argument(
         "--google_sheets_id",
