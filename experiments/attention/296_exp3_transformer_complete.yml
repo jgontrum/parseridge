@@ -14,11 +14,12 @@ experiment:
   show_progress_bars: false
 model:
   attention:
+    configuration_encoder: static
     normalization_function: softmax
     scale_key: 0
     scale_query: 0
     scale_value: 0
-    scoring_function: static
+    scoring_function: dot
   corpus:
     dev_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-dev.conllu
     oov_probability: 0.0
