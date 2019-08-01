@@ -109,7 +109,8 @@ class InputEncoder(Module):
                 batch=sentence_batch, lengths=sentence_lengths, device=self.device
             )
 
-            sequence = tokens_embedded
+            # Add positional encodings
+            sequence = self.positional_encoder(tokens_embedded)
 
             layer_outputs = []
             weights = []
