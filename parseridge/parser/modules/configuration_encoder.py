@@ -6,7 +6,7 @@ from torch import Tensor
 from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
     AttentionReporter,
 )
-from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
+from parseridge.parser.modules.attention.positional_embeddings import PositionalEmbeddings
 from parseridge.parser.modules.attention.soft_attention import Attention
 from parseridge.parser.modules.attention.universal_attention import UniversalAttention
 from parseridge.parser.modules.data_parallel import Module
@@ -72,12 +72,10 @@ class UniversalConfigurationEncoder(Module):
 
         self.model_size = self.input_size = model_size
 
-        self.positional_encoder = PositionalEncoder(
-            model_size=self.model_size, max_length=350
-        )
+        self.positional_encoder = PositionalEmbeddings(model_size=self.model_size)
 
         self.stack_attention = UniversalAttention(
-            query_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -87,7 +85,7 @@ class UniversalConfigurationEncoder(Module):
         )
 
         self.buffer_attention = UniversalAttention(
-            query_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -166,13 +164,11 @@ class StackBufferQueryConfigurationEncoder(Module):
 
         self.model_size = self.input_size = model_size
 
-        self.positional_encoder = PositionalEncoder(
-            model_size=self.model_size, max_length=350
-        )
+        self.positional_encoder = PositionalEmbeddings(model_size=self.model_size)
 
         self.stack_attention = Attention(
-            query_dim=self.model_size,
-            key_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -182,8 +178,8 @@ class StackBufferQueryConfigurationEncoder(Module):
         )
 
         self.buffer_attention = Attention(
-            query_dim=self.model_size,
-            key_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -285,12 +281,10 @@ class FinishedQueryConfigurationEncoder(Module):
 
         self.model_size = self.input_size = model_size
 
-        self.positional_encoder = PositionalEncoder(
-            model_size=self.model_size, max_length=350
-        )
+        self.positional_encoder = PositionalEmbeddings(model_size=self.model_size)
 
         self.finished_tokens_attention = UniversalAttention(
-            query_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -301,7 +295,7 @@ class FinishedQueryConfigurationEncoder(Module):
 
         self.stack_attention = Attention(
             query_dim=self.finished_tokens_attention.output_size,
-            key_dim=self.model_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -312,7 +306,7 @@ class FinishedQueryConfigurationEncoder(Module):
 
         self.buffer_attention = Attention(
             query_dim=self.finished_tokens_attention.output_size,
-            key_dim=self.model_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -426,12 +420,10 @@ class SentenceQueryConfigurationEncoder(Module):
 
         self.model_size = self.input_size = model_size
 
-        self.positional_encoder = PositionalEncoder(
-            model_size=self.model_size, max_length=350
-        )
+        self.positional_encoder = PositionalEmbeddings(model_size=self.model_size)
 
         self.finished_tokens_attention = UniversalAttention(
-            query_dim=self.model_size,
+            query_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -442,7 +434,7 @@ class SentenceQueryConfigurationEncoder(Module):
 
         self.sentence_attention = Attention(
             query_dim=self.finished_tokens_attention.output_size,
-            key_dim=self.model_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -453,7 +445,7 @@ class SentenceQueryConfigurationEncoder(Module):
 
         self.stack_attention = Attention(
             query_dim=self.sentence_attention.output_size,
-            key_dim=self.model_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,
@@ -464,7 +456,7 @@ class SentenceQueryConfigurationEncoder(Module):
 
         self.buffer_attention = Attention(
             query_dim=self.sentence_attention.output_size,
-            key_dim=self.model_size,
+            key_dim=self.positional_encoder.output_size,
             similarity=scoring_function,
             normalization=normalization_function,
             query_output_dim=scale_query,

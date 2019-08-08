@@ -5,13 +5,14 @@ from parseridge.parser.modules.data_parallel import Module
 
 
 class PositionalEmbeddings(Module):
-    def __init__(self, embedding_size=128, max_length=80, **kwargs):
+    def __init__(self, model_size: int, max_length: int = 1024, **kwargs):
         super().__init__(**kwargs)
 
-        self.embedding_size = embedding_size
+        self.input_size = self.output_size = model_size
+
+        self.embedding_size = model_size
         self.max_length = max_length
         self.padding_idx = 0
-        self.output_size = self.embedding_size
 
         self.emb = nn.Embedding(
             num_embeddings=self.max_length + 1,
@@ -19,17 +20,16 @@ class PositionalEmbeddings(Module):
             padding_idx=self.padding_idx,
         )
 
-    def forward(self, input_lengths):
-        max_length = max(1, max(input_lengths))
+    def forward(self, x):
+        indices = torch.arange(1, x.size(1) + 1, device=self.device, dtype=torch.long)
+        indices_batch = indices.expand(x.size(0), x.size(1))
 
-        position_batch = []
-        for length in input_lengths:
-            positions = list(range(1, length + 1))
-            positions = [min(self.max_length, position) for position in positions]
+        padding = torch.zeros_like(indices_batch)
 
-            padding = [self.padding_idx] * (max_length - length)
-            position_batch.append(positions + padding)
+        padded_indices_batch = torch.where(
+            indices_batch < self.max_length, indices_batch, padding
+        )
 
-        position_batch = torch.tensor(position_batch, device=self.device, dtype=torch.long)
+        embeddings = self.emb(padded_indices_batch)
 
-        return self.emb(position_batch)
+        return x + embeddings
