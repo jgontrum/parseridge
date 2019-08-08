@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from parseridge.corpus.relations import Relations
 from parseridge.corpus.vocabulary import Vocabulary
+from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.configuration_encoder import (
     CONFIGURATION_ENCODERS,
     AttentionReporter,
@@ -105,6 +106,15 @@ class ParseridgeModel(Module):
 
         self.mlp_in_size = self.configuration_encoder.output_size
 
+        self.mlp_input_transform = MultilayerPerceptron(
+            input_size=self.mlp_in_size,
+            hidden_sizes=[512],
+            output_size=self.mlp_in_size,
+            activation=nn.ReLU,
+        )
+
+        self.mlp_input_transform_norm = AddAndNormLayer(model_size=self.mlp_in_size)
+
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
             hidden_sizes=transition_mlp_layers,
@@ -168,6 +178,10 @@ class ParseridgeModel(Module):
             sentence_features=sentence_features,
             sentence_ids=sentence_ids,
             padding=self._mlp_padding,
+        )
+
+        mlp_input = self.mlp_input_transform_norm(
+            input=mlp_input, output=self.mlp_input_transform(mlp_input)
         )
 
         # Use output and feed it into MLP
