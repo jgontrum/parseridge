@@ -99,7 +99,7 @@ def parse_train_cli_arguments():
     )
 
     nn_group.add_argument(
-        "--lstm_layers", type=int, default=2, help="Number of stacked LSTMs", required=False
+        "--lstm_layers", type=int, default=3, help="Number of stacked LSTMs", required=False
     )
 
     nn_group.add_argument(
