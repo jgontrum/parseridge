@@ -15,6 +15,7 @@ def get_args():
     )
 
     parser.add_argument("experiment", type=str, help="Path to the experiment definition.")
+    parser.add_argument("--dry_run", action="store_true")
 
     return parser.parse_args()
 
@@ -53,20 +54,30 @@ if __name__ == "__main__":
         if v.endswith("_path"):
             if os.path.exists(v):
                 raise Exception(f"Folder already exists: {v}.")
-            os.makedirs(v, exist_ok=True)
+            if args.dry_run:
+                print(f"Would create folder: {v}")
+            else:
+                os.makedirs(v, exist_ok=True)
 
         elif v.endswith("_file"):
             if os.path.exists(v):
                 raise Exception(f"File already exists: {v}.")
-            os.makedirs(os.path.dirname(v), exist_ok=True)
+            if args.dry_run:
+                print(f"Would create folder: {os.path.dirname(v)}")
+            else:
+                os.makedirs(os.path.dirname(v), exist_ok=True)
     #
     # # Clone the code base and switch to the required commit
-    subprocess.run(
+    cmd = (
         f"git clone {experiment['repository']} {experiment['code_path']} &&"
         f"cd {experiment['code_path']} &&"
-        f"git checkout --quiet  {experiment['commit']}",
-        shell=True,
+        f"git checkout --quiet  {experiment['commit']}"
     )
+
+    if args.dry_run:
+        print(f"Would run: {cmd}")
+    else:
+        subprocess.run(cmd, shell=True)
 
     # Get all the arguments we want to pass to the trainer
     training_args = {}
@@ -78,14 +89,21 @@ if __name__ == "__main__":
     for option, value in training_args.items():
         if isinstance(value, list):
             value = " ".join([str(v) for v in value])
-        arguments.append(f"--{option}={value}")
+
+        if isinstance(value, bool):
+            value = str(value).lower()
+
+        if value != "":
+            arguments.append(f"--{option} {value}")
 
     arguments = " ".join(arguments)
 
     # Run the experiment
-    subprocess.run(
+    cmd = (
         f"PYTHONPATH=$PYTHONPATH:{experiment['code_path']} {experiment['python_bin']} "
-        f"parseridge/train.py {arguments}",
-        cwd=experiment["code_path"],
-        shell=True,
+        f"parseridge/train.py {arguments}"
     )
+    if args.dry_run:
+        print(f"Would run: {cmd}")
+    else:
+        subprocess.run(cmd, cwd=experiment["code_path"], shell=True)
