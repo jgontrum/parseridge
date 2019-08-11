@@ -1,4 +1,4 @@
-  experiment:
+experiment:
   attention_reporter_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/attention_energies/
   code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
   commit: acb633f8474538d8991de827b6ce3ccadefd67f0
