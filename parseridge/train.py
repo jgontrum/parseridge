@@ -120,6 +120,7 @@ if __name__ == "__main__":
             scoring_function=args.scoring_function,
             normalization_function=args.normalization_function,
             attention_reporter=attention_reporter,
+            reduce_dimensionality=args.dimensionality_reduction,
             device=args.device,
         ).to(args.device)
 
