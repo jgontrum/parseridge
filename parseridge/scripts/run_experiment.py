@@ -7,6 +7,12 @@ import yaml
 
 IGNORE_KEYS = ["repository", "code_path", "python_bin", "experiment_group"]
 
+"""
+Script that takes an experiment definition file and creates a new folder for it.
+It then downloads the parser code at the given commit hash and passes the parameters
+to the training scripts. Useful when running a lot of experiments on a compute cluster.
+"""
+
 
 def get_args():
     parser = argparse.ArgumentParser(

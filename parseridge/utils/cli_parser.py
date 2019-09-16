@@ -9,6 +9,7 @@ from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODE
 
 def parse_train_cli_arguments():
     parser = argparse.ArgumentParser(
+        prog="python parseridge/train.py",
         description="Trains a parser model.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

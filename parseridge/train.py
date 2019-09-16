@@ -1,3 +1,4 @@
+""" Use this script to train a new model. """
 import json
 import logging
 
