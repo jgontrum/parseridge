@@ -253,3 +253,9 @@ __pycache__
 
 models/
 data
+
+
+.vscode
+.pytest_cache
+.ipynb_checkpoints
+attention
