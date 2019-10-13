@@ -149,6 +149,15 @@ def parse_train_cli_arguments():
         required=False,
     )
 
+    nn_group.add_argument(
+        "--encoder_output_transformation_layers",
+        type=int,
+        default=[],
+        nargs="*",
+        help="List of sizes of the layers used to transform the output of the encoder.",
+        required=False,
+    )
+
     regularization_group = parser.add_argument_group("Regularization")
     regularization_group.add_argument(
         "--margin_threshold",

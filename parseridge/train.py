@@ -111,6 +111,7 @@ if __name__ == "__main__":
             relation_mlp_layers=args.relation_mlp_layers,
             transition_mlp_layers=args.transition_mlp_layers,
             mlp_input_transformation_layers=args.mlp_input_transformation_layers,
+            encoder_output_transformation_layers=args.encoder_output_transformation_layers,
             embeddings=embeddings,
             transition_mlp_activation=ACTIVATION_FUNCTIONS[args.transition_mlp_activation],
             relation_mlp_activation=ACTIVATION_FUNCTIONS[args.relation_mlp_activation],
