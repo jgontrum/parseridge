@@ -239,6 +239,14 @@ def parse_train_cli_arguments():
         choices=["MaxMargin", "CrossEntropy"],
     )
 
+    regularization_group.add_argument(
+        "--dimensionality_reduction",
+        type=int,
+        default=0,
+        help="Transform the output of the input encoder into this dimension.",
+        required=False,
+    )
+
     attention_group = parser.add_argument_group("Attention")
     attention_group.add_argument(
         "--configuration_encoder",

@@ -39,14 +39,6 @@ class InputEncoder(Module):
             embedding_dim=token_embedding_size,
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
         )
-
-        if self.reduce_dimensionality:
-            self.dimensionality_reducer = nn.Sequential(
-                nn.Linear(token_embedding_size, self.reduce_dimensionality), nn.PReLU()
-            )
-
-            self.input_size = self.reduce_dimensionality
-
         # TODO Add other feature embeddings here
 
         if self.mode == "lstm":
@@ -71,6 +63,13 @@ class InputEncoder(Module):
 
             self.output_size = self.input_size
 
+        if self.reduce_dimensionality:
+            self.dimensionality_reducer = nn.Sequential(
+                nn.Linear(self.output_size, self.reduce_dimensionality), nn.ReLU()
+            )
+
+            self.output_size = self.reduce_dimensionality
+
     def load_external_embeddings(self, embeddings: ExternalEmbeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
         self.token_embeddings.weight = embeddings.get_weight_matrix(
@@ -79,9 +78,6 @@ class InputEncoder(Module):
 
     def forward(self, sentence_batch, sentence_lengths):
         tokens_embedded = self.token_embeddings(sentence_batch)
-
-        if self.reduce_dimensionality:
-            tokens_embedded = self.dimensionality_reducer(tokens_embedded)
 
         if self.mode == "lstm":
             input_packed = pack_padded_sequence(
@@ -96,6 +92,9 @@ class InputEncoder(Module):
                 outputs = (
                     outputs[:, :, : self.hidden_size] + outputs[:, :, self.hidden_size :]
                 )  # Sum bidirectional outputs
+
+            if self.reduce_dimensionality:
+                outputs = self.dimensionality_reducer(outputs)
 
             return outputs, hidden
 
@@ -124,6 +123,9 @@ class InputEncoder(Module):
 
             # Mask out padding tokens
             attention_output[mask] = float("-inf")
+
+            if self.reduce_dimensionality:
+                attention_output = self.dimensionality_reducer(attention_output)
 
             return attention_output, attention_weights
 

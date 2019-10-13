@@ -43,6 +43,7 @@ class ParseridgeModel(Module):
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
         attention_reporter: Optional[AttentionReporter] = None,
+        reduce_dimensionality: Optional[int] = None,
         device: str = "cpu",
     ) -> None:
 
@@ -83,7 +84,7 @@ class ParseridgeModel(Module):
             layers=self.lstm_layers,
             dropout=self.lstm_dropout,
             sum_directions=False,
-            reduce_dimensionality=False,
+            reduce_dimensionality=reduce_dimensionality,
             mode=self.input_encoder_type,
             heads=self_attention_heads,
             device=self.device,
