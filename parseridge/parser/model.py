@@ -34,8 +34,11 @@ class ParseridgeModel(Module):
         relation_mlp_layers: List[int] = None,
         transition_mlp_activation: nn.Module = nn.Tanh,
         relation_mlp_activation: nn.Module = nn.Tanh,
+        mlp_input_transformation_layers: List[int] = None,
+        encoder_output_transformation_layers: List[int] = None,
         embeddings: ExternalEmbeddings = None,
         self_attention_heads: int = 10,
+        self_attention_layers: int = 2,
         configuration_encoder: str = "static",
         scale_query: int = None,
         scale_key: int = None,
@@ -43,6 +46,7 @@ class ParseridgeModel(Module):
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
         attention_reporter: Optional[AttentionReporter] = None,
+        reduce_dimensionality: Optional[int] = None,
         device: str = "cpu",
     ) -> None:
 
@@ -83,10 +87,28 @@ class ParseridgeModel(Module):
             layers=self.lstm_layers,
             dropout=self.lstm_dropout,
             sum_directions=False,
-            reduce_dimensionality=False,
+            reduce_dimensionality=reduce_dimensionality,
             mode=self.input_encoder_type,
-            heads=self_attention_heads,
+            self_attention_heads=self_attention_heads,
+            self_attention_layers=self_attention_layers,
             device=self.device,
+        )
+
+        self.encoder_output_transform = (
+            MultilayerPerceptron(
+                input_size=self.input_encoder.output_size,
+                hidden_sizes=[512],
+                output_size=self.input_encoder.output_size,
+                activation=nn.Tanh,
+            )
+            if encoder_output_transformation_layers
+            else nn.Identity()
+        )
+
+        self.encoder_output_transform_norm = (
+            AddAndNormLayer(model_size=self.input_encoder.output_size)
+            if encoder_output_transformation_layers
+            else nn.Identity()
         )
 
         """Computes attention over the output of the input encoder given the state of the
@@ -106,14 +128,22 @@ class ParseridgeModel(Module):
 
         self.mlp_in_size = self.configuration_encoder.output_size
 
-        self.mlp_input_transform = MultilayerPerceptron(
-            input_size=self.mlp_in_size,
-            hidden_sizes=[512],
-            output_size=self.mlp_in_size,
-            activation=nn.ReLU,
+        self.mlp_input_transform = (
+            MultilayerPerceptron(
+                input_size=self.mlp_in_size,
+                hidden_sizes=mlp_input_transformation_layers,
+                output_size=self.mlp_in_size,
+                activation=nn.ReLU,
+            )
+            if mlp_input_transformation_layers
+            else nn.Identity()
         )
 
-        self.mlp_input_transform_norm = AddAndNormLayer(model_size=self.mlp_in_size)
+        self.mlp_input_transform_norm = (
+            AddAndNormLayer(model_size=self.mlp_in_size)
+            if mlp_input_transformation_layers
+            else nn.Identity()
+        )
 
         self.transition_mlp = MultilayerPerceptron(
             input_size=self.mlp_in_size,
@@ -165,6 +195,11 @@ class ParseridgeModel(Module):
         sentence_features: Optional[torch.Tensor] = None,
         sentence_ids: Optional[List[str]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        contextualized_input_batch = self.encoder_output_transform_norm(
+            input=contextualized_input_batch,
+            output=self.encoder_output_transform(contextualized_input_batch),
+        )
 
         mlp_input = self.configuration_encoder(
             contextualized_input_batch=contextualized_input_batch,

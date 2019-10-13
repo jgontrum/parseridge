@@ -1,21 +1,24 @@
 import torch.nn as nn
-from torch.nn import MultiheadAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
+from parseridge.parser.modules.attention.self_attention_layer import SelfAttentionLayer
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.utils import get_mask
 
 
 class InputEncoder(Module):
+    INPUT_ENCODER_MODES = ["lstm", "transformer", "none"]
+
     def __init__(
         self,
         token_vocabulary,
         token_embedding_size,
         hidden_size=125,
         layers=2,
-        heads=10,
+        self_attention_heads=10,
+        self_attention_layers=4,
         dropout=0.33,
         max_sentence_length=100,
         sum_directions=True,
@@ -39,14 +42,6 @@ class InputEncoder(Module):
             embedding_dim=token_embedding_size,
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
         )
-
-        if self.reduce_dimensionality:
-            self.dimensionality_reducer = nn.Sequential(
-                nn.Linear(token_embedding_size, self.reduce_dimensionality), nn.PReLU()
-            )
-
-            self.input_size = self.reduce_dimensionality
-
         # TODO Add other feature embeddings here
 
         if self.mode == "lstm":
@@ -62,14 +57,29 @@ class InputEncoder(Module):
             self.output_size = hidden_size if self.sum_directions else 2 * hidden_size
         elif self.mode == "transformer":
             self.positional_encoder = PositionalEncoder(
-                model_size=self.input_size, max_length=100
+                model_size=self.input_size, max_length=1024
             )
 
-            self.multihead_attention = MultiheadAttention(
-                embed_dim=self.input_size, num_heads=heads
-            )
+            self.self_attention_layers = [
+                SelfAttentionLayer(
+                    model_size=self.input_size, num_heads=self_attention_heads
+                )
+                for _ in range(self_attention_layers)
+            ]
 
             self.output_size = self.input_size
+        elif self.mode == "none":
+            self.output_size = token_embedding_size
+
+        else:
+            raise ValueError(f"'{self.mode}' not in {self.INPUT_ENCODER_MODES}.")
+
+        if self.reduce_dimensionality:
+            self.dimensionality_reducer = nn.Sequential(
+                nn.Linear(self.output_size, self.reduce_dimensionality), nn.ReLU()
+            )
+
+            self.output_size = self.reduce_dimensionality
 
     def load_external_embeddings(self, embeddings: ExternalEmbeddings):
         self.logger.info("Loading external embeddings into the embedding layer...")
@@ -79,9 +89,6 @@ class InputEncoder(Module):
 
     def forward(self, sentence_batch, sentence_lengths):
         tokens_embedded = self.token_embeddings(sentence_batch)
-
-        if self.reduce_dimensionality:
-            tokens_embedded = self.dimensionality_reducer(tokens_embedded)
 
         if self.mode == "lstm":
             input_packed = pack_padded_sequence(
@@ -97,6 +104,9 @@ class InputEncoder(Module):
                     outputs[:, :, : self.hidden_size] + outputs[:, :, self.hidden_size :]
                 )  # Sum bidirectional outputs
 
+            if self.reduce_dimensionality:
+                outputs = self.dimensionality_reducer(outputs)
+
             return outputs, hidden
 
         elif self.mode == "transformer":
@@ -106,27 +116,21 @@ class InputEncoder(Module):
             )
 
             # Add positional encodings
-            tokens_embedded = self.positional_encoder(tokens_embedded)
+            sequence = self.positional_encoder(tokens_embedded)
 
-            # [Batch, Sequence, Embedding] -> [Sequence, Batch, Embedding]
-            tokens_embedded = tokens_embedded.transpose(0, 1)
+            layer_outputs = []
+            weights = []
+            for self_attention_layer in self.self_attention_layers:
+                attention_output, attention_weights = self_attention_layer(
+                    sequence=sequence, mask=mask
+                )
 
-            # Compute the multihead attention
-            attention_output, attention_weights = self.multihead_attention(
-                query=tokens_embedded,
-                key=tokens_embedded,
-                value=tokens_embedded,
-                key_padding_mask=mask,
-            )
+                layer_outputs.append(attention_output)
+                weights.append(attention_weights)
 
-            # [Sequence, Batch, Embedding] -> [Batch, Sequence, Embedding]
-            attention_output = attention_output.transpose(0, 1)
+            if self.reduce_dimensionality:
+                attention_output = self.dimensionality_reducer(layer_outputs[-1])
 
-            # Mask out padding tokens
-            attention_output[mask] = float("-inf")
-
-            return attention_output, attention_weights
-
-        # TODO residual connections
-        # TODO dropout
-        # TODO layernorm
+            return attention_output, (layer_outputs, weights)
+        elif self.mode == "none":
+            return tokens_embedded, None

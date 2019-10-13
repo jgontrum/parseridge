@@ -1,3 +1,4 @@
+""" Use this script to train a new model. """
 import json
 import logging
 
@@ -109,10 +110,13 @@ if __name__ == "__main__":
             input_encoder_type=args.input_encoder_type,
             relation_mlp_layers=args.relation_mlp_layers,
             transition_mlp_layers=args.transition_mlp_layers,
+            mlp_input_transformation_layers=args.mlp_input_transformation_layers,
+            encoder_output_transformation_layers=args.encoder_output_transformation_layers,
             embeddings=embeddings,
             transition_mlp_activation=ACTIVATION_FUNCTIONS[args.transition_mlp_activation],
             relation_mlp_activation=ACTIVATION_FUNCTIONS[args.relation_mlp_activation],
             self_attention_heads=args.self_attention_heads,
+            self_attention_layers=args.self_attention_layers,
             configuration_encoder=args.configuration_encoder,
             scale_query=args.scale_query,
             scale_key=args.scale_key,
@@ -120,6 +124,7 @@ if __name__ == "__main__":
             scoring_function=args.scoring_function,
             normalization_function=args.normalization_function,
             attention_reporter=attention_reporter,
+            reduce_dimensionality=args.dimensionality_reduction,
             device=args.device,
         ).to(args.device)
 

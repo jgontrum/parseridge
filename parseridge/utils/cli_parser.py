@@ -5,10 +5,12 @@ from distutils.util import strtobool
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.modules.attention.soft_attention import Attention
 from parseridge.parser.modules.configuration_encoder import CONFIGURATION_ENCODERS
+from parseridge.parser.modules.input_encoder import InputEncoder
 
 
 def parse_train_cli_arguments():
     parser = argparse.ArgumentParser(
+        prog="python parseridge/train.py",
         description="Trains a parser model.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -87,7 +89,7 @@ def parse_train_cli_arguments():
         default="lstm",
         help="The type of input encoder to use.",
         required=False,
-        choices=["lstm", "transformer"],
+        choices=InputEncoder.INPUT_ENCODER_MODES,
     )
 
     nn_group.add_argument(
@@ -136,6 +138,24 @@ def parse_train_cli_arguments():
         help="Activation function for the transition MLP.",
         required=False,
         choices=list(ACTIVATION_FUNCTIONS.keys()),
+    )
+
+    nn_group.add_argument(
+        "--mlp_input_transformation_layers",
+        type=int,
+        default=[],
+        nargs="*",
+        help="List of sizes of the layers used to transform the input to the MLPs.",
+        required=False,
+    )
+
+    nn_group.add_argument(
+        "--encoder_output_transformation_layers",
+        type=int,
+        default=[],
+        nargs="*",
+        help="List of sizes of the layers used to transform the output of the encoder.",
+        required=False,
     )
 
     regularization_group = parser.add_argument_group("Regularization")
@@ -238,6 +258,14 @@ def parse_train_cli_arguments():
         choices=["MaxMargin", "CrossEntropy"],
     )
 
+    regularization_group.add_argument(
+        "--dimensionality_reduction",
+        type=int,
+        default=0,
+        help="Transform the output of the input encoder into this dimension.",
+        required=False,
+    )
+
     attention_group = parser.add_argument_group("Attention")
     attention_group.add_argument(
         "--configuration_encoder",
@@ -304,6 +332,14 @@ def parse_train_cli_arguments():
         default=10,
         help="Number of heads in the self-attention encoder if used. "
         "The encoding dimensions must be dividable by this number.",
+        required=False,
+    )
+
+    attention_group.add_argument(
+        "--self_attention_layers",
+        type=int,
+        default=2,
+        help="Stacked self-attention layers.",
         required=False,
     )
 
