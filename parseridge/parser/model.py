@@ -109,6 +109,7 @@ class ParseridgeModel(Module):
         )
 
         self.mlp_in_size = self.configuration_encoder.output_size
+
         self.mlp_input_transform = (
             MultilayerPerceptron(
                 input_size=self.mlp_in_size,

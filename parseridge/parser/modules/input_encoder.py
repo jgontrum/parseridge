@@ -9,6 +9,8 @@ from parseridge.parser.modules.utils import get_mask
 
 
 class InputEncoder(Module):
+    INPUT_ENCODER_MODES = ["lstm", "transformer", "none"]
+
     def __init__(
         self,
         token_vocabulary,
@@ -66,6 +68,11 @@ class InputEncoder(Module):
             ]
 
             self.output_size = self.input_size
+        elif self.mode == "none":
+            self.output_size = token_embedding_size
+
+        else:
+            raise ValueError(f"'{self.mode}' not in {self.INPUT_ENCODER_MODES}.")
 
         if self.reduce_dimensionality:
             self.dimensionality_reducer = nn.Sequential(
@@ -124,4 +131,6 @@ class InputEncoder(Module):
             if self.reduce_dimensionality:
                 attention_output = self.dimensionality_reducer(layer_outputs[-1])
 
-            return layer_outputs[-1], (layer_outputs, weights)
+            return attention_output, (layer_outputs, weights)
+        elif self.mode == "none":
+            return tokens_embedded, None
