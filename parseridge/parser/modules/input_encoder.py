@@ -1,8 +1,8 @@
 import torch.nn as nn
-from torch.nn import MultiheadAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from parseridge.parser.modules.attention.positional_encodings import PositionalEncoder
+from parseridge.parser.modules.attention.self_attention_layer import SelfAttentionLayer
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.modules.utils import get_mask
@@ -15,7 +15,8 @@ class InputEncoder(Module):
         token_embedding_size,
         hidden_size=125,
         layers=2,
-        heads=10,
+        self_attention_heads=10,
+        self_attention_layers=4,
         dropout=0.33,
         max_sentence_length=100,
         sum_directions=True,
@@ -54,12 +55,15 @@ class InputEncoder(Module):
             self.output_size = hidden_size if self.sum_directions else 2 * hidden_size
         elif self.mode == "transformer":
             self.positional_encoder = PositionalEncoder(
-                model_size=self.input_size, max_length=100
+                model_size=self.input_size, max_length=1024
             )
 
-            self.multihead_attention = MultiheadAttention(
-                embed_dim=self.input_size, num_heads=heads
-            )
+            self.self_attention_layers = [
+                SelfAttentionLayer(
+                    model_size=self.input_size, num_heads=self_attention_heads
+                )
+                for _ in range(self_attention_layers)
+            ]
 
             self.output_size = self.input_size
 
@@ -105,30 +109,19 @@ class InputEncoder(Module):
             )
 
             # Add positional encodings
-            tokens_embedded = self.positional_encoder(tokens_embedded)
+            sequence = self.positional_encoder(tokens_embedded)
 
-            # [Batch, Sequence, Embedding] -> [Sequence, Batch, Embedding]
-            tokens_embedded = tokens_embedded.transpose(0, 1)
+            layer_outputs = []
+            weights = []
+            for self_attention_layer in self.self_attention_layers:
+                attention_output, attention_weights = self_attention_layer(
+                    sequence=sequence, mask=mask
+                )
 
-            # Compute the multihead attention
-            attention_output, attention_weights = self.multihead_attention(
-                query=tokens_embedded,
-                key=tokens_embedded,
-                value=tokens_embedded,
-                key_padding_mask=mask,
-            )
-
-            # [Sequence, Batch, Embedding] -> [Batch, Sequence, Embedding]
-            attention_output = attention_output.transpose(0, 1)
-
-            # Mask out padding tokens
-            attention_output[mask] = float("-inf")
+                layer_outputs.append(attention_output)
+                weights.append(attention_weights)
 
             if self.reduce_dimensionality:
-                attention_output = self.dimensionality_reducer(attention_output)
+                attention_output = self.dimensionality_reducer(layer_outputs[-1])
 
-            return attention_output, attention_weights
-
-        # TODO residual connections
-        # TODO dropout
-        # TODO layernorm
+            return layer_outputs[-1], (layer_outputs, weights)

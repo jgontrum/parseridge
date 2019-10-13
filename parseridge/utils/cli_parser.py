@@ -139,6 +139,15 @@ def parse_train_cli_arguments():
         choices=list(ACTIVATION_FUNCTIONS.keys()),
     )
 
+    nn_group.add_argument(
+        "--mlp_input_transformation_layers",
+        type=int,
+        default=[],
+        nargs="*",
+        help="List of sizes of the layers used to transform the input to the MLPs.",
+        required=False,
+    )
+
     regularization_group = parser.add_argument_group("Regularization")
     regularization_group.add_argument(
         "--margin_threshold",
@@ -313,6 +322,14 @@ def parse_train_cli_arguments():
         default=10,
         help="Number of heads in the self-attention encoder if used. "
         "The encoding dimensions must be dividable by this number.",
+        required=False,
+    )
+
+    attention_group.add_argument(
+        "--self_attention_layers",
+        type=int,
+        default=2,
+        help="Stacked self-attention layers.",
         required=False,
     )
 

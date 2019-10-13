@@ -27,11 +27,15 @@ class PositionalEncoder(Module):
         self.pe = torch.from_numpy(position_enc).float().to(self.device)
         self.pe = self.pe.requires_grad_(False)
 
+        self.norm = nn.LayerNorm(self.model_size)
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x):
+        if x.size(1) == 0:
+            return x
+
         # make embeddings relatively larger
         x *= math.sqrt(self.model_size)
 
         pe = self.pe[: x.size(1)]
-        return self.dropout(x + pe)
+        return self.norm(self.dropout(x + pe))
