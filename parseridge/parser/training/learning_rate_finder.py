@@ -2,8 +2,6 @@ import math
 from dataclasses import dataclass
 from typing import Union, Optional
 
-import torch
-
 from parseridge.corpus.corpus import Corpus
 from parseridge.corpus.training_data import ConLLDataset
 from parseridge.parser.training.base_trainer import Trainer
@@ -12,6 +10,7 @@ from parseridge.parser.training.callbacks.learning_rate_finder_callback import (
 )
 from parseridge.parser.training.callbacks.lr_scheduler_callback import LRSchedulerCallback
 from parseridge.parser.training.callbacks.progress_bar_callback import ProgressBarCallback
+from parseridge.parser.training.cyclic_lr import CyclicLR
 from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.utils.logger import LoggerMixin
 
@@ -34,7 +33,7 @@ class LearningRateFinder(LoggerMixin):
     ):
         step_size = int(math.floor(len(training_data) / hyper_parameters.batch_size / 2))
 
-        scheduler = torch.optim.lr_scheduler.CyclicLR(
+        scheduler = CyclicLR(
             optimizer=self.trainer.optimizer,
             base_lr=self.min_learning_rate,
             max_lr=self.max_learning_rate,

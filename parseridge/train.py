@@ -142,31 +142,21 @@ if __name__ == "__main__":
                 auth_file_path=args.google_sheets_auth_path,
                 hyper_parameters=vars(args),
             ),
+            attention_reporter,
+            EvalProgressBarCallback() if args.show_progress_bars else None,
         ]
-
-        if attention_reporter:
-            evaluation_callbacks.append(attention_reporter)
 
         training_callbacks = [
             TrainSimpleLoggerCallback(),
             SaveModelCallback(folder_path=args.model_save_path),
-        ]
-
-        if args.show_progress_bars:
-            evaluation_callbacks.append(EvalProgressBarCallback())
-            training_callbacks.append(ProgressBarCallback(moving_average=64))
-
-        training_callbacks.append(
+            ProgressBarCallback(moving_average=64) if args.show_progress_bars else None,
             EvaluationCallback(
                 evaluator=Evaluator(model, treebank, callbacks=evaluation_callbacks)
-            )
-        )
-
-        # Enable gradient clipping
-        if args.gradient_clipping:
-            training_callbacks.append(
-                GradientClippingCallback(threshold=args.gradient_clipping)
-            )
+            ),
+            GradientClippingCallback(threshold=args.gradient_clipping)
+            if args.gradient_clipping
+            else None,
+        ]
 
         if embeddings and args.freeze_embeddings:
             training_callbacks.append(

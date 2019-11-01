@@ -1,5 +1,6 @@
 import random
 from copy import deepcopy
+from typing import List, Optional, Union, Iterable
 
 import conllu
 
@@ -10,17 +11,25 @@ from parseridge.utils.logger import LoggerMixin
 
 
 class Sentence(LoggerMixin):
-    def __init__(self, tokens, text=None, meta=None, sentence_id=None):
+    def __init__(
+        self,
+        tokens: List[Token],
+        text: str = None,
+        meta: Optional[dict] = None,
+        sentence_id: int = None,
+    ):
         self._iter = 0
         self.text = text
-        if not meta:
-            meta = {}
-        self.meta = meta
+        self.meta = meta or {}
         self.id = sentence_id
         self.tokens = [Token.create_root_token()] + tokens
 
         for token in self:
-            token.parent = None if token.head is None else self.tokens[token.head]
+            if token.head is None:
+                token.parent = None
+            else:
+                token.parent = self.tokens[token.head]
+
             token.dependents = [
                 other_token.id
                 for other_token in self.tokens
@@ -33,7 +42,9 @@ class Sentence(LoggerMixin):
         if not self.text:
             self.text = " ".join([token.form for token in self[:-1]])
 
-    def _calculate_token_order(self, queue=None, index=None):
+    def _calculate_token_order(
+        self, queue: Optional[List[Token]] = None, index: Optional[int] = None
+    ):
         if queue is None:
             queue = [self[0]]
             index = self[0].id
@@ -57,12 +68,12 @@ class Sentence(LoggerMixin):
 
             return results
 
-    def to_conllu(self):
+    def to_conllu(self) -> conllu.TokenList:
         return conllu.TokenList(
             [token.serialize() for token in self[1:]], metadata=self.meta
         )
 
-    def get_empty_copy(self):
+    def get_empty_copy(self) -> "Sentence":
         """
         Returns a copy of the sentence but without any gold
         relations or labels. This is used in the training process
@@ -72,23 +83,23 @@ class Sentence(LoggerMixin):
         new_tokens = [token.get_unparsed_token() for token in self[1:]]
         return Sentence(new_tokens, text=self.text, meta=self.meta, sentence_id=self.id)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.to_conllu().serialize()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.tokens)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> Union[Token, List[Token]]:
         # Look up tokens for a list of indices
         if isinstance(i, list):
             return [self[j] for j in i]
         # Normal index / slice lookup
         return self.tokens[i]
 
-    def __iter__(self):
+    def __iter__(self) -> "Sentence":
         return self
 
-    def __next__(self):
+    def __next__(self) -> Optional[Token]:
         if self._iter >= len(self):
             self._iter = 0
             raise StopIteration
@@ -97,7 +108,7 @@ class Sentence(LoggerMixin):
             return self[self._iter - 1]
 
     @classmethod
-    def from_conllu(cls, conllu_string):
+    def from_conllu(cls, conllu_string: str) -> Iterable["Sentence"]:
         """
         Generator that reads a string containing a treebank in CoNLL-U format
         and produces Sentence objects for all sentences in the treebank.

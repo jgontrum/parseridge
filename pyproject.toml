@@ -27,11 +27,17 @@ flake8 = "^3.7"
 mkdocs = "^1.0.4"
 mkdocs-material = "^4.4.3"
 pygments = "^2.4.2"
+pymdown-extensions = "^6.1"
 
 [tool.black]
 line-length = 92
 target_version = ["py37"]
 exclude = "\\.git"
+
+[tool.isort]
+line_length = 92
+force_single_line = true
+known_third_party = ["torch", "numpy", "yaml"]
 
 [build-system]
 requires = ["poetry>=0.12"]

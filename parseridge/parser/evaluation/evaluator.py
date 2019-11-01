@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from types import FunctionType
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Callable, Union
 
 import torch
 
 from parseridge.corpus.corpus import CorpusIterator, Corpus
+from parseridge.corpus.sentence import Sentence
 from parseridge.corpus.treebank import Treebank
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallback
@@ -15,6 +15,8 @@ from parseridge.parser.training.dynamic_trainer import DynamicTrainer
 from parseridge.utils.helpers import T
 from parseridge.utils.logger import LoggerMixin
 
+SCORES = Dict[str, Union[float, Dict[str, Dict[str, float]]]]
+
 
 @dataclass
 class Evaluator(LoggerMixin):
@@ -22,7 +24,7 @@ class Evaluator(LoggerMixin):
     treebank: Treebank
     callbacks: List[EvalCallback] = None
     batch_size: int = 64
-    eval_function: FunctionType = CoNLLEvaluationScript().get_las_score_for_sentences
+    eval_function: Callable = CoNLLEvaluationScript().get_las_score_for_sentences
 
     def __post_init__(self) -> None:
         self.callback_handler = EvalCallbackHandler(callbacks=self.callbacks or [])
@@ -35,35 +37,45 @@ class Evaluator(LoggerMixin):
         self.model.eval()
         self.callback_handler.on_eval_begin(epoch=epoch)
 
-        train_las, train_uas = self._evaluate_corpus(
+        train_scores = self._evaluate_corpus(
             self.treebank.train_corpus, corpus_type="train"
         )
 
-        dev_las, dev_uas = self._evaluate_corpus(
-            self.treebank.dev_corpus, corpus_type="dev"
-        )
+        dev_scores = self._evaluate_corpus(self.treebank.dev_corpus, corpus_type="dev")
 
-        test_las = test_uas = None
+        test_scores = None
         if self.treebank.test_corpus:
-            test_las, test_uas = self._evaluate_corpus(
+            test_scores = self._evaluate_corpus(
                 self.treebank.test_corpus, corpus_type="test"
             )
 
         scores = {
-            "train": {"las": train_las, "uas": train_uas},
-            "dev": {"las": dev_las, "uas": dev_uas},
-            "test": {"las": test_las, "uas": test_uas},
+            "train": {
+                "las": train_scores["las"],
+                "uas": train_scores["uas"],
+                "all": train_scores["all"],
+            },
+            "dev": {
+                "las": dev_scores["las"],
+                "uas": dev_scores["uas"],
+                "all": dev_scores["all"],
+            },
+            "test": {
+                "las": test_scores["las"] if test_scores else None,
+                "uas": test_scores["uas"] if test_scores else None,
+                "all": test_scores["all"] if test_scores else None,
+            },
         }
 
         self.callback_handler.on_eval_end(scores=scores, loss=loss, epoch=epoch)
 
         return scores
 
-    def _evaluate_corpus(self, corpus: Corpus, corpus_type: str) -> Tuple[int, int]:
+    def _evaluate_corpus(self, corpus: Corpus, corpus_type: str) -> SCORES:
         self.callback_handler.on_epoch_begin(dataset=corpus, corpus_type=corpus_type)
 
-        gold_sentences = []
-        pred_sentences = []
+        gold_sentences: List[Sentence] = []
+        pred_sentences: List[Sentence] = []
 
         iterator = CorpusIterator(corpus, batch_size=self.batch_size, train=False)
         for i, batch in enumerate(iterator):
@@ -83,19 +95,18 @@ class Evaluator(LoggerMixin):
                 corpus_type=corpus_type,
             )
 
-        las, uas = self.eval_function(gold_sentences, pred_sentences)
+        scores = self.eval_function(gold_sentences, pred_sentences)
 
         self.callback_handler.on_epoch_end(
-            las=las,
-            uas=uas,
+            scores=scores,
             gold_sentences=gold_sentences,
             pred_sentences=pred_sentences,
             corpus_type=corpus_type,
         )
 
-        return las, uas
+        return scores
 
-    def _run_prediction_batch(self, batch) -> Tuple[List, List]:
+    def _run_prediction_batch(self, batch) -> Tuple[List[Sentence], List[Sentence]]:
         pred_sentences = []
         gold_sentences = []
 

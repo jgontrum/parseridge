@@ -2,6 +2,7 @@ from random import random
 
 import torch
 
+from parseridge.corpus.sentence import Sentence
 from parseridge.utils.helpers import Action, T, Transition
 from parseridge.utils.logger import LoggerMixin
 
@@ -9,7 +10,7 @@ from parseridge.utils.logger import LoggerMixin
 class Configuration(LoggerMixin):
     def __init__(
         self,
-        sentence,
+        sentence: Sentence,
         contextualized_input,
         model,
         predict=True,

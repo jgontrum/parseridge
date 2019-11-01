@@ -2,6 +2,7 @@ import os
 import random
 from collections import namedtuple
 from enum import Enum
+from typing import Optional
 
 import numpy as np
 import torch
@@ -68,7 +69,7 @@ class Action:
 
     def __init__(
         self,
-        relation: Relation,
+        relation: Optional[Relation],
         transition: Transition,
         score: torch.tensor,
         np_score: np.array = None,
