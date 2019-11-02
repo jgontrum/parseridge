@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "parseridge"
-version = "0.1.0"
+version = "0.1.1.dev1"
 description = "A transition-based dependency parser backed by attention mechanisms."
 authors = ["Johannes Gontrum <j@gontrum.me>"]
 license = "Apache-2.0"
@@ -25,10 +25,10 @@ pandas = "^0.24.2"
 black = {version = "^18.3-alpha.4", allows-prereleases = true}
 pre-commit = "^1.17"
 flake8 = "^3.7"
-#mkdocs = "^1.0.4"
-#mkdocs-material = "^4.4.3"
-#pygments = "^2.4.2"
-#pymdown-extensions = "^6.1"
+mkdocs = "^1.0.4"
+mkdocs-material = "^4.4.3"
+pygments = "^2.4.2"
+pymdown-extensions = "^6.1"
 
 [tool.black]
 line-length = 92
@@ -38,7 +38,7 @@ exclude = "\\.git"
 [tool.isort]
 line_length = 92
 force_single_line = true
-known_third_party = ["conllu", "numpy", "pandas", "pygsheets", "torch", "tqdm", "yaml"]
+known_third_party = ["conllu", "dataclasses", "numpy", "pandas", "pygsheets", "torch", "tqdm", "yaml"]
 
 [build-system]
 requires = ["poetry>=0.12"]
