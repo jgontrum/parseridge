@@ -12,7 +12,7 @@ from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallba
 
 
 @dataclass
-class AttentionReporter(EvalCallback):
+class EvalAttentionReporter(EvalCallback):
     file_path: str
     vocabulary: Vocabulary
 

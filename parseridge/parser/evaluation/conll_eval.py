@@ -1,5 +1,5 @@
 import io
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 from parseridge.utils.logger import LoggerMixin
 
@@ -456,40 +456,20 @@ class CoNLLEvaluationScript(LoggerMixin):
         return alignment
 
     def get_las_score_for_sentences(
-        self, gold_sentences, predicted_sentences, save_path=None
+        self, gold_sentences: List[str], predicted_sentences: List[str]
     ) -> Dict[str, Union[float, Dict[str, Dict[str, float]]]]:
         """
         Takes a list of gold an predicted sentence objects and computes the
         F1 LAS score between them.
         """
-        serialized_gold = [
-            sentence.to_conllu().serialize()
-            for sentence in sorted(gold_sentences, key=lambda s: s.id)
-        ]
 
-        serialized_predicted = [
-            sentence.to_conllu().serialize()
-            for sentence in sorted(predicted_sentences, key=lambda s: s.id)
-        ]
-
-        gold_buffer = io.StringIO("".join(serialized_gold))
-        pred_buffer = io.StringIO("".join(serialized_predicted))
+        gold_buffer = io.StringIO("".join(gold_sentences))
+        pred_buffer = io.StringIO("".join(predicted_sentences))
 
         gold_connl = self.load_conllu(gold_buffer)
         pred_connl = self.load_conllu(pred_buffer)
 
         raw_scores = self.evaluate(gold_connl, pred_connl)
-
-        if save_path:
-            file_name = f"{save_path}/las-{raw_scores['LAS'].f1 * 100}.conllu"
-            with open(file_name, "w") as f:
-                f.writelines(serialized_predicted)
-
-            file_name = f"{save_path}/las-{raw_scores['LAS'].f1 * 100}_gold.conllu"
-            with open(file_name, "w") as f:
-                f.writelines(serialized_gold)
-
-            self.logger.info(f"Wrote predicted treebank to '{file_name}'.")
 
         scores = {
             "las": raw_scores["LAS"].f1 * 100,

@@ -10,14 +10,14 @@ from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
-    AttentionReporter,
+    EvalAttentionReporter,
 )
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
-from parseridge.parser.evaluation.callbacks.csv_callback import CSVReporter
+from parseridge.parser.evaluation.callbacks.csv_callback import EvalCSVReporter
 from parseridge.parser.evaluation.callbacks.google_sheets_callback import (
-    GoogleSheetsReporter,
+    EvalGoogleSheetsReporter,
 )
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.training.callbacks.evaluation_callback import EvaluationCallback
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         )
 
         attention_reporter = (
-            AttentionReporter(
+            EvalAttentionReporter(
                 file_path=args.attention_reporter_path, vocabulary=treebank.vocabulary
             )
             if args.attention_reporter_path
@@ -135,8 +135,8 @@ if __name__ == "__main__":
         # Set-up callbacks for the training and the evaluation.
         evaluation_callbacks = [
             EvalSimpleLogger(),
-            CSVReporter(csv_path=args.csv_output_file),
-            GoogleSheetsReporter(
+            EvalCSVReporter(csv_path=args.csv_output_file),
+            EvalGoogleSheetsReporter(
                 experiment_title=args.experiment_name,
                 sheets_id=args.google_sheets_id,
                 auth_file_path=args.google_sheets_auth_path,
@@ -151,7 +151,9 @@ if __name__ == "__main__":
             SaveModelCallback(folder_path=args.model_save_path),
             ProgressBarCallback(moving_average=64) if args.show_progress_bars else None,
             EvaluationCallback(
-                evaluator=Evaluator(model, treebank, callbacks=evaluation_callbacks)
+                evaluator=Evaluator(
+                    model, treebank, cli_args=args, callbacks=evaluation_callbacks
+                )
             ),
             GradientClippingCallback(threshold=args.gradient_clipping)
             if args.gradient_clipping

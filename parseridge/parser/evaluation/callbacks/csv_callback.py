@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallback
 
 
-class CSVReporter(EvalCallback):
+class EvalCSVReporter(EvalCallback):
     _order = 10
 
     def __init__(self, csv_path: Optional[str] = None):

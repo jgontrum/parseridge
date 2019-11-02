@@ -259,3 +259,8 @@ data
 .pytest_cache
 .ipynb_checkpoints
 attention
+parsed
+google_sheets_auth.json
+output.yml
+*.conllu
+*.ipynb

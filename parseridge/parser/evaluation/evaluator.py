@@ -1,5 +1,7 @@
+from argparse import Namespace
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Callable, Union
+from typing import List, Dict, Tuple, Callable, Union, Optional
 
 import torch
 
@@ -22,13 +24,16 @@ SCORES = Dict[str, Union[float, Dict[str, Dict[str, float]]]]
 class Evaluator(LoggerMixin):
     model: Module
     treebank: Treebank
-    callbacks: List[EvalCallback] = None
+    callbacks: Optional[List[EvalCallback]] = None
+    cli_args: Optional[Namespace] = None
     batch_size: int = 64
     eval_function: Callable = CoNLLEvaluationScript().get_las_score_for_sentences
 
     def __post_init__(self) -> None:
         self.callback_handler = EvalCallbackHandler(callbacks=self.callbacks or [])
-        self.callback_handler.on_initialization()
+        self.callback_handler.on_initialization(
+            model=self.model, treebank=self.treebank, cli_args=self.cli_args
+        )
 
     def shutdown(self):
         self.callback_handler.on_shutdown()
@@ -43,7 +48,8 @@ class Evaluator(LoggerMixin):
 
         dev_scores = self._evaluate_corpus(self.treebank.dev_corpus, corpus_type="dev")
 
-        test_scores = None
+        test_scores = defaultdict(float)
+        test_scores["all"] = defaultdict(float)
         if self.treebank.test_corpus:
             test_scores = self._evaluate_corpus(
                 self.treebank.test_corpus, corpus_type="test"
@@ -95,12 +101,24 @@ class Evaluator(LoggerMixin):
                 corpus_type=corpus_type,
             )
 
-        scores = self.eval_function(gold_sentences, pred_sentences)
+        serialized_gold = [
+            sentence.to_conllu().serialize()
+            for sentence in sorted(gold_sentences, key=lambda s: s.id)
+        ]
+
+        serialized_pred = [
+            sentence.to_conllu().serialize()
+            for sentence in sorted(pred_sentences, key=lambda s: s.id)
+        ]
+
+        scores = self.eval_function(serialized_gold, serialized_pred)
 
         self.callback_handler.on_epoch_end(
             scores=scores,
             gold_sentences=gold_sentences,
             pred_sentences=pred_sentences,
+            gold_sentences_serialized=serialized_gold,
+            pred_sentences_serialized=serialized_pred,
             corpus_type=corpus_type,
         )
 

@@ -8,7 +8,7 @@ from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.configuration_encoder import (
     CONFIGURATION_ENCODERS,
-    AttentionReporter,
+    EvalAttentionReporter,
 )
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
@@ -46,7 +46,7 @@ class ParseridgeModel(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        attention_reporter: Optional[AttentionReporter] = None,
+        attention_reporter: Optional[EvalAttentionReporter] = None,
         reduce_dimensionality: Optional[int] = None,
         device: str = "cpu",
     ) -> None:
