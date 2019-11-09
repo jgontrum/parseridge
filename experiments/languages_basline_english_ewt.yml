@@ -1,7 +1,7 @@
 experiment:
   attention_reporter_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/attention_energies/
   code_path: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/code
-  commit: dfe2eac
+  commit: 1090d2441065dbc437e2b7a2eb357fdd01d8925e
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
   experiment_group: different-languages
   experiment_name: control_baseline
