@@ -15,7 +15,7 @@ class EvalSaveParsedSentencesCallback(EvalCallback):
         self, pred_sentences_serialized: List[str], corpus_type: str, **kwargs: Any
     ) -> None:
         if self.output_dir_path:
-            filename = self.output_dir_path
+            filename = self.output_dir_path.rstrip("/")
             filename += f"/epoch_{self.current_epoch}-{corpus_type}.conllu"
 
             os.makedirs(os.path.dirname(filename), exist_ok=True)

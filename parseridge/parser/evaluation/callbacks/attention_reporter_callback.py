@@ -3,7 +3,7 @@ import lzma
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, List, Optional
 
 from torch import Tensor
 
@@ -13,22 +13,25 @@ from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallba
 
 @dataclass
 class EvalAttentionReporter(EvalCallback):
-    file_path: str
+    file_path: Optional[str]
     vocabulary: Vocabulary
 
     def __post_init__(self):
         self._current_epoch = 1
         self._reset()
-        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+        if self.file_path:
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
 
     def _reset(self):
-        self._current_data = defaultdict(lambda: defaultdict(list))
+        if self.file_path:
+            self._current_data = defaultdict(lambda: defaultdict(list))
 
     def _save(self, file_name):
-        self.logger.info(f"Saving compressed attention weights to '{file_name}'.")
-        with lzma.open(file_name, mode="w") as f:
-            data = json.dumps(self._current_data)
-            f.write(data.encode())
+        if self.file_path:
+            self.logger.info(f"Saving compressed attention weights to '{file_name}'.")
+            with lzma.open(file_name, mode="w") as f:
+                data = json.dumps(self._current_data)
+                f.write(data.encode())
 
     def log(
         self,

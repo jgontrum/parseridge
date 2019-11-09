@@ -12,9 +12,16 @@ from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
     EvalAttentionReporter,
 )
+from parseridge.parser.evaluation.callbacks.save_parsed_sentences_callback import (
+    EvalSaveParsedSentencesCallback,
+)
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
-from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
+from parseridge.parser.evaluation.callbacks import (
+    EvalProgressBarCallback,
+    EvalSimpleLogger,
+    EvalYAMLReporter,
+)
 from parseridge.parser.evaluation.callbacks.csv_callback import EvalCSVReporter
 from parseridge.parser.evaluation.callbacks.google_sheets_callback import (
     EvalGoogleSheetsReporter,
@@ -136,6 +143,8 @@ if __name__ == "__main__":
         evaluation_callbacks = [
             EvalSimpleLogger(),
             EvalCSVReporter(csv_path=args.csv_output_file),
+            EvalYAMLReporter(yaml_path=args.yml_output_file),
+            EvalSaveParsedSentencesCallback(output_dir_path=args.conllu_save_path),
             EvalGoogleSheetsReporter(
                 experiment_title=args.experiment_name,
                 sheets_id=args.google_sheets_id,

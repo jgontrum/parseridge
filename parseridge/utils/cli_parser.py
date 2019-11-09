@@ -24,9 +24,23 @@ def parse_train_cli_arguments():
     )
 
     file_group.add_argument(
+        "--conllu_save_path",
+        type=str,
+        help="If set, parsed all parsed sentences will be saved in this directory.",
+        required=False,
+    )
+
+    file_group.add_argument(
         "--csv_output_file",
         type=str,
         help="If set, the results are saved in this csv file.",
+        required=False,
+    )
+
+    file_group.add_argument(
+        "--yml_output_file",
+        type=str,
+        help="If set, the results are saved in this yml file.",
         required=False,
     )
 
@@ -311,7 +325,7 @@ def parse_train_cli_arguments():
     attention_group.add_argument(
         "--scoring_function",
         type=str,
-        default="dot",
+        default="concat",
         help="Name of the scoring function to use.",
         required=False,
         choices=list(Attention.SCORING_FUNCTIONS.keys()),
