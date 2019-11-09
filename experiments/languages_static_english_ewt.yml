@@ -4,7 +4,7 @@ experiment:
   commit: 1090d2441065dbc437e2b7a2eb357fdd01d8925e
   csv_output_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/results.csv
   experiment_group: different-languages
-  experiment_name: control_baseline
+  experiment_name: english_static
   google_sheets_auth_path: /usit/abel/u1/jgontrum/projects/parseridge/google_sheets_auth.json
   google_sheets_id: 1ezlMPVbnaWHGVF2brOH0YseUiWyYCbmGmDf1fguEOBk
   log_file: /usit/abel/u1/jgontrum/projects/thesis_experiments/{experiment_name}/experiment.log
