@@ -37,14 +37,17 @@ class InputEncoder(Module):
 
         self.mode = mode
 
+        # Initialize the embedding layer. If we use pre-trained embeddings, they will
+        # replace the weights after initialization using `load_external_embeddings()`.
         self.token_embeddings = nn.Embedding(
             num_embeddings=len(self.token_vocabulary),
             embedding_dim=token_embedding_size,
             padding_idx=self.token_vocabulary.get_id("<<<PADDING>>>"),
-        )
-        # TODO Add other feature embeddings here
+        ).to(self.device)
 
         if self.mode == "lstm":
+            # Set up an LSTM as the input encoder.
+
             self.rnn = nn.LSTM(
                 input_size=self.input_size,
                 hidden_size=hidden_size,
@@ -55,7 +58,9 @@ class InputEncoder(Module):
             )
 
             self.output_size = hidden_size if self.sum_directions else 2 * hidden_size
+
         elif self.mode == "transformer":
+            # Use a transformer-style encoder as the for the input.
             self.positional_encoder = PositionalEncoder(
                 model_size=self.input_size, max_length=1024
             )
@@ -68,7 +73,9 @@ class InputEncoder(Module):
             ]
 
             self.output_size = self.input_size
+
         elif self.mode == "none":
+            # Do not change the input at all and don't use an encoder.
             self.output_size = token_embedding_size
 
         else:

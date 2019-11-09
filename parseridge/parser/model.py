@@ -165,7 +165,9 @@ class ParseridgeModel(Module):
         )
 
         self._mlp_padding_param = nn.Parameter(
-            torch.zeros(self.input_encoder.output_size, dtype=torch.float)
+            torch.zeros(
+                self.input_encoder.output_size, dtype=torch.float, device=self.device
+            )
         )
         self._mlp_padding = None
 
