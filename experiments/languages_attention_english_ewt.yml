@@ -15,7 +15,7 @@ experiment:
   show_progress_bars: false
 model:
   attention:
-    configuration_encoder: static
+    configuration_encoder: finished_tokens_attention
   corpus:
     dev_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_English-EWT/en_ewt-ud-dev.conllu
     oov_probability: 0.25
