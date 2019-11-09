@@ -24,7 +24,7 @@ model:
     train_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_Japanese-GSD/ja_gsd-ud-train.conllu
   embeddings:
     embedding_size: 300
-    embeddings_file: /usit/abel/u1/jgontrum/nobackup/embeddings/fasttext/cc.js.300.vec
+    embeddings_file: /usit/abel/u1/jgontrum/nobackup/embeddings/fasttext/cc.ja.300.vec
     embeddings_vendor: fasttext
     freeze_embeddings: true
   input_encoder:
