@@ -24,6 +24,9 @@ class CallbackHandler(LoggerMixin):
     @staticmethod
     def _verify_callbacks(callbacks: List[Callback]) -> List[Callback]:
         for callback in callbacks:
+            if callback is None:
+                continue
+
             if not isinstance(callback, Callback):
                 raise ValueError(
                     f"Callback {callback.__class__.__name__} is not an Callback."
