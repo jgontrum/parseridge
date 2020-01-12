@@ -1,17 +1,3 @@
 # Parseridge - The Dependency Parsing Toolkit
 
-Some summary about the project.
-
-## Commands
-
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs help` - Print this help message.
-
-## Project layout
-
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+This documentation should help to navigate the code and to explain the ideas behind it better. It is still not finished, but is continously extended.

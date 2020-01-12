@@ -17,6 +17,7 @@ experiment:
 model:
   attention:
     configuration_encoder: finished_tokens_attention
+    scale_key: 500
     scale_value: 500
   corpus:
     dev_corpus: /usit/abel/u1/jgontrum/nobackup/treebank/ud-treebanks-v2.4/UD_German-GSD/de_gsd-ud-dev.conllu
