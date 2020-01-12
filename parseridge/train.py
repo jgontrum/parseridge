@@ -10,14 +10,21 @@ from parseridge.corpus.treebank import Treebank
 from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.activation import ACTIVATION_FUNCTIONS
 from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
-    AttentionReporter,
+    EvalAttentionReporter,
+)
+from parseridge.parser.evaluation.callbacks.save_parsed_sentences_callback import (
+    EvalSaveParsedSentencesCallback,
 )
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
-from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
-from parseridge.parser.evaluation.callbacks.csv_callback import CSVReporter
+from parseridge.parser.evaluation.callbacks import (
+    EvalProgressBarCallback,
+    EvalSimpleLogger,
+    EvalYAMLReporter,
+)
+from parseridge.parser.evaluation.callbacks.csv_callback import EvalCSVReporter
 from parseridge.parser.evaluation.callbacks.google_sheets_callback import (
-    GoogleSheetsReporter,
+    EvalGoogleSheetsReporter,
 )
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
 from parseridge.parser.training.callbacks.evaluation_callback import EvaluationCallback
@@ -89,7 +96,7 @@ if __name__ == "__main__":
         )
 
         attention_reporter = (
-            AttentionReporter(
+            EvalAttentionReporter(
                 file_path=args.attention_reporter_path, vocabulary=treebank.vocabulary
             )
             if args.attention_reporter_path
@@ -135,38 +142,32 @@ if __name__ == "__main__":
         # Set-up callbacks for the training and the evaluation.
         evaluation_callbacks = [
             EvalSimpleLogger(),
-            CSVReporter(csv_path=args.csv_output_file),
-            GoogleSheetsReporter(
+            EvalCSVReporter(csv_path=args.csv_output_file),
+            EvalYAMLReporter(yaml_path=args.yml_output_file),
+            EvalSaveParsedSentencesCallback(output_dir_path=args.conllu_save_path),
+            EvalGoogleSheetsReporter(
                 experiment_title=args.experiment_name,
                 sheets_id=args.google_sheets_id,
                 auth_file_path=args.google_sheets_auth_path,
                 hyper_parameters=vars(args),
             ),
+            attention_reporter,
+            EvalProgressBarCallback() if args.show_progress_bars else None,
         ]
-
-        if attention_reporter:
-            evaluation_callbacks.append(attention_reporter)
 
         training_callbacks = [
             TrainSimpleLoggerCallback(),
             SaveModelCallback(folder_path=args.model_save_path),
-        ]
-
-        if args.show_progress_bars:
-            evaluation_callbacks.append(EvalProgressBarCallback())
-            training_callbacks.append(ProgressBarCallback(moving_average=64))
-
-        training_callbacks.append(
+            ProgressBarCallback(moving_average=64) if args.show_progress_bars else None,
             EvaluationCallback(
-                evaluator=Evaluator(model, treebank, callbacks=evaluation_callbacks)
-            )
-        )
-
-        # Enable gradient clipping
-        if args.gradient_clipping:
-            training_callbacks.append(
-                GradientClippingCallback(threshold=args.gradient_clipping)
-            )
+                evaluator=Evaluator(
+                    model, treebank, cli_args=args, callbacks=evaluation_callbacks
+                )
+            ),
+            GradientClippingCallback(threshold=args.gradient_clipping)
+            if args.gradient_clipping
+            else None,
+        ]
 
         if embeddings and args.freeze_embeddings:
             training_callbacks.append(

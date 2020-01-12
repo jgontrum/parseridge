@@ -2,16 +2,21 @@ import math
 import random
 from copy import deepcopy
 from itertools import chain
+from typing import List, Tuple
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from parseridge.corpus.sentence import Sentence
+from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.utils.logger import LoggerMixin
 
 
 class Corpus(Dataset, LoggerMixin):
-    def __init__(self, sentences, vocabulary, device="cpu"):
+    def __init__(
+        self, sentences: List[Sentence], vocabulary: Vocabulary, device: str = "cpu"
+    ) -> None:
         """
         A Corpus stores all the sentences and their numeric representations.
         Use `get_iterator()` to generate an iterator over the data.
@@ -66,36 +71,20 @@ class Corpus(Dataset, LoggerMixin):
             self.sentence_token_freq_tensors, dtype=torch.float, device=self.device
         )
 
-    def _pad_list(self, list_, max_sentence_length):
+    @staticmethod
+    def _pad_list(list_: List[int], max_sentence_length: int) -> np.ndarray:
         """
         Pad the rest of the list with zeros.
-        Parameters
-        ----------
-        list_ : List of int
-            List to pad.
-        max_sentence_length : int
-            Desired length of the list.
-        Returns
-        -------
-        List of int
         """
         pad_size = max_sentence_length - len(list_)
         padding = np.ones(pad_size)
         return np.concatenate((list_, padding))
 
-    def _prepare_sentence(self, sentence):
+    def _prepare_sentence(self, sentence: Sentence) -> Tuple[np.ndarray, np.ndarray]:
         """
         Replaces the tokens in the sentence by integers and pads the output.
         This is the place to add more features in the future like characters
         or part-of-speech tags.
-
-        Parameters
-        ----------
-        sentence : Sentence object
-
-        Returns
-        -------
-        List of int
         """
         tokens = [self.vocabulary.get_id(token.form) for token in sentence]
         self.num_oov_tokens += tokens.count(self.vocabulary.get_id("<<<OOV>>>"))
@@ -107,24 +96,24 @@ class Corpus(Dataset, LoggerMixin):
 
         return sentence_padded, frequencies_padded
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.sentence_lengths)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> torch.Tensor:
         return self.sentence_tensors[index]
 
 
 class CorpusIterator(LoggerMixin):
     def __init__(
         self,
-        corpus,
-        batch_size=8,
-        shuffle=False,
-        drop_last=False,
-        train=False,
-        oov_probability=0.25,
-        group_by_length=True,
-        token_dropout=0.1,
+        corpus: Corpus,
+        batch_size: int = 8,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        train: bool = False,
+        oov_probability: float = 0.25,
+        group_by_length: bool = True,
+        token_dropout: float = 0.1,
     ):
         """
         Helper class to iterate over the batches produced by the Corpus class.
@@ -132,13 +121,6 @@ class CorpusIterator(LoggerMixin):
         This helper is needed because the corpus returns not only a Tensor with
         the numeric representation of a sentence, but also the sentence object
         itself, which is not supported by PyTorch's DataLoader class.
-
-        Parameters
-        ----------
-        corpus
-        batch_size
-        shuffle
-        drop_last
         """
         self.corpus = corpus
         self.batch_size = batch_size

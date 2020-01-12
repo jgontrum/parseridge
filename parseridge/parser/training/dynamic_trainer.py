@@ -1,9 +1,11 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import torch
 from torch.nn.modules.loss import _Loss
 
 from parseridge.corpus.corpus import CorpusIterator, Corpus
+from parseridge.corpus.sentence import Sentence
+from parseridge.corpus.training_data import ConLLDataset
 from parseridge.parser.configuration import Configuration
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.utils import (
@@ -13,6 +15,7 @@ from parseridge.parser.modules.utils import (
 )
 from parseridge.parser.training.base_trainer import Trainer
 from parseridge.parser.training.callbacks.base_callback import StopEpoch, StopTraining
+from parseridge.parser.training.hyperparameters import Hyperparameters
 from parseridge.utils.helpers import T
 
 
@@ -24,7 +27,8 @@ class DynamicTrainer(Trainer):
     def fit(
         self,
         epochs: int,
-        training_data: Corpus,
+        training_data: Union[Corpus, ConLLDataset],
+        hyper_parameters: Hyperparameters = None,
         batch_size: int = 4,
         oov_probability: float = 0.00,
         token_dropout: float = 0.00,
@@ -36,6 +40,8 @@ class DynamicTrainer(Trainer):
     ) -> None:
         if not isinstance(training_data, Corpus):
             raise ValueError(f"The DynamicTrainer requires a Corpus object for training.")
+        if hyper_parameters:
+            raise ValueError(f"Hyper Parameter objects are not supported here.")
 
         initial_epoch = self.last_epoch
 
@@ -88,7 +94,7 @@ class DynamicTrainer(Trainer):
             epoch=epoch, num_batches=len(iterator), training_data=training_data
         )
 
-        loss = []
+        loss: List[torch.Tensor] = []
         epoch_loss = 0
 
         for i, batch in enumerate(iterator):
@@ -138,8 +144,15 @@ class DynamicTrainer(Trainer):
         self.callback_handler.on_epoch_end(epoch=epoch, epoch_loss=epoch_loss)
 
     def _process_training_batch(
-        self, batch, error_probability, margin_threshold, criterion=None
+        self,
+        batch: Tuple[torch.Tensor, List[Sentence]],
+        error_probability: float,
+        margin_threshold: float,
+        criterion: Optional[_Loss] = None,
     ) -> List[torch.Tensor]:
+        """
+        Parses the sentences in the given batch and returns the loss values.
+        """
         loss = []
 
         transition_logits = []
@@ -262,8 +275,6 @@ class DynamicTrainer(Trainer):
         Wraps the stacks, buffers and contextualized token data of all
         given configurations into a tensor which is then passed through
         the MLP to compute the classification scores in the configurations.
-        :param configurations: List of not finished Configurations
-        :return: Updated Configurations
         """
 
         contextualized_inputs = [c.contextualized_input for c in configurations]

@@ -8,10 +8,11 @@ from parseridge.corpus.vocabulary import Vocabulary
 from parseridge.parser.modules.add_and_norm_layer import AddAndNormLayer
 from parseridge.parser.modules.configuration_encoder import (
     CONFIGURATION_ENCODERS,
-    AttentionReporter,
+    EvalAttentionReporter,
 )
 from parseridge.parser.modules.data_parallel import Module
 from parseridge.parser.modules.external_embeddings import ExternalEmbeddings
+from parseridge.parser.modules.identity import Identity
 from parseridge.parser.modules.input_encoder import InputEncoder
 from parseridge.parser.modules.mlp import MultilayerPerceptron
 from parseridge.parser.modules.utils import initialize_xavier_dynet_
@@ -45,7 +46,7 @@ class ParseridgeModel(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        attention_reporter: Optional[AttentionReporter] = None,
+        attention_reporter: Optional[EvalAttentionReporter] = None,
         reduce_dimensionality: Optional[int] = None,
         device: str = "cpu",
     ) -> None:
@@ -102,13 +103,13 @@ class ParseridgeModel(Module):
                 activation=nn.Tanh,
             )
             if encoder_output_transformation_layers
-            else nn.Identity()
+            else Identity()
         )
 
         self.encoder_output_transform_norm = (
             AddAndNormLayer(model_size=self.input_encoder.output_size)
             if encoder_output_transformation_layers
-            else nn.Identity()
+            else Identity()
         )
 
         """Computes attention over the output of the input encoder given the state of the
@@ -136,13 +137,13 @@ class ParseridgeModel(Module):
                 activation=nn.ReLU,
             )
             if mlp_input_transformation_layers
-            else nn.Identity()
+            else Identity()
         )
 
         self.mlp_input_transform_norm = (
             AddAndNormLayer(model_size=self.mlp_in_size)
             if mlp_input_transformation_layers
-            else nn.Identity()
+            else Identity()
         )
 
         self.transition_mlp = MultilayerPerceptron(
@@ -164,7 +165,9 @@ class ParseridgeModel(Module):
         )
 
         self._mlp_padding_param = nn.Parameter(
-            torch.zeros(self.input_encoder.output_size, dtype=torch.float)
+            torch.zeros(
+                self.input_encoder.output_size, dtype=torch.float, device=self.device
+            )
         )
         self._mlp_padding = None
 

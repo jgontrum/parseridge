@@ -1,9 +1,10 @@
 from torch.optim import Adam
 
 from parseridge import logger, git_commit
-from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
-    AttentionReporter,
+from parseridge.parser.evaluation.callbacks.save_parsed_sentences_callback import (
+    EvalSaveParsedSentencesCallback,
 )
+from parseridge.parser.evaluation.callbacks.yaml_callback import EvalYAMLReporter
 from parseridge.parser.model import ParseridgeModel
 from parseridge.parser.evaluation import Evaluator
 from parseridge.parser.evaluation.callbacks import EvalProgressBarCallback, EvalSimpleLogger
@@ -16,12 +17,8 @@ from parseridge.corpus.treebank import Treebank
 logger.info(f"Running at git commit {git_commit}.")
 
 treebank = Treebank(
-    train_io=open("data/UD_English-GUM/en_gum-ud-train.conllu"),
-    dev_io=open("data/UD_English-GUM/en_gum-ud-dev.conllu"),
-)
-
-attention_reporter = AttentionReporter(
-    file_path="./attention_energies/", vocabulary=treebank.vocabulary
+    train_io=open("data/UD_English-GUM/en_gum-ud-dev.conllu"),
+    dev_io=open("data/UD_English-GUM/en_gum-ud-test.conllu"),
 )
 
 model = ParseridgeModel(
@@ -43,7 +40,13 @@ optimizer = Adam(model.parameters())
 evaluator = Evaluator(
     model,
     treebank,
-    callbacks=[EvalProgressBarCallback(), EvalSimpleLogger(), attention_reporter],
+    callbacks=[
+        EvalProgressBarCallback(),
+        EvalSimpleLogger(),
+        EvalProgressBarCallback(),
+        EvalSaveParsedSentencesCallback(output_dir_path="./parsed"),
+        EvalYAMLReporter(yaml_path="./output.yml"),
+    ],
 )
 
 callbacks = [ProgressBarCallback(moving_average=64), EvaluationCallback(evaluator)]

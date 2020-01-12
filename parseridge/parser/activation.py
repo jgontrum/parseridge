@@ -1,4 +1,5 @@
 import math
+from typing import Dict
 
 import torch
 from torch import nn
@@ -13,7 +14,7 @@ class GELU(nn.Module):
         )
 
 
-ACTIVATION_FUNCTIONS = {
+ACTIVATION_FUNCTIONS: Dict[str, nn.Module] = {
     "sigmoid": nn.Sigmoid,
     "tanh": nn.Tanh,
     "hard_tanh": nn.Hardtanh,

@@ -1,4 +1,5 @@
 import io
+from typing import Dict, Union, List
 
 from parseridge.utils.logger import LoggerMixin
 
@@ -70,6 +71,9 @@ class CoNLLEvaluationScript(LoggerMixin):
                 correct / aligned_total if aligned_total else aligned_total
             )
 
+        def serialize(self):
+            return {"f1": self.f1, "aligned_accuracy": self.aligned_accuracy}
+
     class AlignmentWord:
         def __init__(self, gold_word, system_word):
             self.gold_word = gold_word
@@ -109,7 +113,7 @@ class CoNLLEvaluationScript(LoggerMixin):
                     else 0
                 )
 
-    def evaluate(self, gold_ud, system_ud, deprel_weights=None):
+    def evaluate(self, gold_ud, system_ud):
         # Check that underlying character sequences do match
         if gold_ud.characters != system_ud.characters:
             index = 0
@@ -260,6 +264,7 @@ class CoNLLEvaluationScript(LoggerMixin):
                             ud.tokens[-1], word_columns, is_multiword=True
                         )
                     )
+
             # Basic tokens/words
             else:
                 try:
@@ -451,42 +456,25 @@ class CoNLLEvaluationScript(LoggerMixin):
         return alignment
 
     def get_las_score_for_sentences(
-        self, gold_sentences, predicted_sentences, save_path=None
-    ):
+        self, gold_sentences: List[str], predicted_sentences: List[str]
+    ) -> Dict[str, Union[float, Dict[str, Dict[str, float]]]]:
         """
         Takes a list of gold an predicted sentence objects and computes the
         F1 LAS score between them.
-        :param gold_sentences: List of Sentence objects
-        :param predicted_sentences: List of Sentence objects
-        :return: LAS score (float)
         """
-        serialized_gold = [
-            sentence.to_conllu().serialize()
-            for sentence in sorted(gold_sentences, key=lambda s: s.id)
-        ]
 
-        serialized_predicted = [
-            sentence.to_conllu().serialize()
-            for sentence in sorted(predicted_sentences, key=lambda s: s.id)
-        ]
-
-        gold_buffer = io.StringIO("".join(serialized_gold))
-        pred_buffer = io.StringIO("".join(serialized_predicted))
+        gold_buffer = io.StringIO("".join(gold_sentences))
+        pred_buffer = io.StringIO("".join(predicted_sentences))
 
         gold_connl = self.load_conllu(gold_buffer)
         pred_connl = self.load_conllu(pred_buffer)
 
-        scores = self.evaluate(gold_connl, pred_connl)
+        raw_scores = self.evaluate(gold_connl, pred_connl)
 
-        if save_path:
-            file_name = f"{save_path}/las-{scores['LAS'].f1 * 100}.conllu"
-            with open(file_name, "w") as f:
-                f.writelines(serialized_predicted)
+        scores = {
+            "las": raw_scores["LAS"].f1 * 100,
+            "uas": raw_scores["UAS"].f1 * 100,
+            "all": {k: v.serialize() for k, v in raw_scores.items()},
+        }
 
-            file_name = f"{save_path}/las-{scores['LAS'].f1 * 100}_gold.conllu"
-            with open(file_name, "w") as f:
-                f.writelines(serialized_gold)
-
-            self.logger.info(f"Wrote predicted treebank to '{file_name}'.")
-
-        return scores["LAS"].f1 * 100, scores["UAS"].f1 * 100
+        return scores

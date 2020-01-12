@@ -7,7 +7,7 @@ from parseridge.parser.evaluation.callbacks.base_eval_callback import EvalCallba
 from parseridge.utils.google_sheets_template_engine import GoogleSheetsTemplateEngine
 
 
-class GoogleSheetsReporter(EvalCallback):
+class EvalGoogleSheetsReporter(EvalCallback):
     _order = 20
 
     def __init__(

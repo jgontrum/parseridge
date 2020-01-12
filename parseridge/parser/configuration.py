@@ -1,3 +1,4 @@
+import typing
 from random import random
 
 import torch
@@ -5,11 +6,15 @@ import torch
 from parseridge.utils.helpers import Action, T, Transition
 from parseridge.utils.logger import LoggerMixin
 
+if typing.TYPE_CHECKING:
+    # Handling cyclic imports due to type annotations.
+    from parseridge.corpus.sentence import Sentence
+
 
 class Configuration(LoggerMixin):
     def __init__(
         self,
-        sentence,
+        sentence: "Sentence",
         contextualized_input,
         model,
         predict=True,

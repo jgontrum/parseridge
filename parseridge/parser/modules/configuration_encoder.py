@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from parseridge.parser.evaluation.callbacks.attention_reporter_callback import (
-    AttentionReporter,
+    EvalAttentionReporter,
 )
 from parseridge.parser.modules.attention.positional_embeddings import PositionalEmbeddings
 from parseridge.parser.modules.attention.soft_attention import Attention
@@ -64,7 +64,7 @@ class UniversalConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        reporter: Optional[AttentionReporter] = None,
+        reporter: Optional[EvalAttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -156,7 +156,7 @@ class StackBufferQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        reporter: Optional[AttentionReporter] = None,
+        reporter: Optional[EvalAttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -273,7 +273,7 @@ class FinishedQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        reporter: Optional[AttentionReporter] = None,
+        reporter: Optional[EvalAttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -412,7 +412,7 @@ class SentenceQueryConfigurationEncoder(Module):
         scale_value: int = None,
         scoring_function: str = "dot",
         normalization_function: str = "softmax",
-        reporter: Optional[AttentionReporter] = None,
+        reporter: Optional[EvalAttentionReporter] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)

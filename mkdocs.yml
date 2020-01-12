@@ -1,0 +1,31 @@
+site_name: Parseridge
+site_description: A transition-based dependency parsing toolkit
+site_author: Johannes Gontrum
+#site_url: 'https://squidfunk.github.io/mkdocs-material/'
+
+repo_name: jgontrum/parseridge
+repo_url: https://github.com/jgontrum/parseridge
+edit_uri: null
+
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: blue
+  feature:
+    tabs: false
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: ¶
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+
+extra_javascript:
+  - 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-MML-AM_CHTML'

@@ -6,7 +6,7 @@ ch = logging.StreamHandler()
 formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s : %(message)s")
 
 ch.setFormatter(formatter)
-logger = logging.getLogger("main")
+logger = logging.getLogger("")
 logger.addHandler(ch)
 logger.setLevel(logging.DEBUG)
 

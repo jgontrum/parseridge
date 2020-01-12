@@ -1,12 +1,17 @@
 import re
+from typing import Optional, List, Set
 
 from parseridge.corpus.signature import Signature
 
 
-class Vocabulary(Signature):
+class Vocabulary(Signature[str]):
     number_regex = re.compile("[0-9]+|[0-9]+\\.[0-9]+|[0-9]+[0-9,]+")
 
-    def __init__(self, entries=None, embeddings_vocab=None):
+    def __init__(
+        self,
+        entries: Optional[List[str]] = None,
+        embeddings_vocab: Optional[Set[str]] = None,
+    ):
         default_entries = ["<<<OOV>>>", "<<<PADDING>>>", "NUM", "*root*"]
         self.embeddings_vocab = None  # Init with None to be able to add default_entries
 

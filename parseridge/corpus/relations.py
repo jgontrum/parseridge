@@ -1,10 +1,13 @@
+from typing import Iterable, List
+
+from parseridge.corpus.sentence import Sentence
 from parseridge.corpus.signature import Signature
 from parseridge.utils.helpers import Relation, T
 from parseridge.utils.logger import LoggerMixin
 
 
 class Relations(LoggerMixin):
-    def __init__(self, sentences):
+    def __init__(self, sentences: List[Sentence]):
         relations = set()
         for sentence in sentences:
             for token in sentence:
@@ -12,8 +15,8 @@ class Relations(LoggerMixin):
                     relations.add(token.relation)
 
         relations = list(sorted(relations))
-        self.label_signature = Signature(warn_on_oov=True)
-        self.signature = Signature(warn_on_oov=True)
+        self.label_signature = Signature[str](warn_on_oov=True)
+        self.signature = Signature[str](warn_on_oov=True)
 
         self.labels = [Relation(T.SHIFT, None), Relation(T.SWAP, None)]
 
@@ -37,8 +40,8 @@ class Relations(LoggerMixin):
         }
 
     @property
-    def relations(self):
+    def relations(self) -> Iterable[str]:
         return self.signature.get_items()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.labels)
