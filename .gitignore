@@ -264,3 +264,5 @@ google_sheets_auth.json
 output.yml
 *.conllu
 *.ipynb
+
+experiments/
