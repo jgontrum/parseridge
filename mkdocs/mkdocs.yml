@@ -10,8 +10,8 @@ edit_uri: null
 theme:
   name: material
   palette:
-    primary: blue
-    accent: blue
+    primary: black
+    accent: pink
   feature:
     tabs: false
 markdown_extensions:
